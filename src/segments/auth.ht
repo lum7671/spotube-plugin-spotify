@@ -17,16 +17,92 @@ var LocalStorage = spotube.LocalStorage
 var Webview = spotube.Webview
 var Cookie = spotube.Cookie
 
+// 로깅 레벨
+enum LogLevel {
+  DEBUG,
+  INFO,
+  WARNING,
+  ERROR
+}
+
+// 로깅 시스템
+class Logger {
+  var enabled: bool = true
+  var minLevel: LogLevel = LogLevel.INFO
+
+  fun log(level: LogLevel, tag: string, message: string) {
+    if (!enabled) return;
+    
+    // 프로덕션 환경에서는 ERROR 레벨만 출력
+    if (level.index < minLevel.index) return;
+    
+    final levelStr = level == LogLevel.DEBUG ? "DEBUG" :
+                     level == LogLevel.INFO ? "INFO" :
+                     level == LogLevel.WARNING ? "WARN" :
+                     "ERROR";
+    
+    final timestamp = DateTime.now().toString();
+    print("[${timestamp}] [${levelStr}] [${tag}] ${message}");
+  }
+
+  fun debug(tag: string, message: string) {
+    log(LogLevel.DEBUG, tag, message);
+  }
+
+  fun info(tag: string, message: string) {
+    log(LogLevel.INFO, tag, message);
+  }
+
+  fun warning(tag: string, message: string) {
+    log(LogLevel.WARNING, tag, message);
+  }
+
+  fun error(tag: string, message: string) {
+    log(LogLevel.ERROR, tag, message);
+  }
+}
+
+final logger = Logger()
+
+/**
+ * Spotify 인증 엔드포인트 클래스
+ * 
+ * Spotify 웹 플레이어 API를 사용한 인증 및 토큰 관리를 담당합니다.
+ * TOTP(Time-based One-Time Password)를 사용하여 액세스 토큰을 발급하고,
+ * 자동 갱신 및 재시도 로직을 제공합니다.
+ * 
+ * @author Spotube Plugin Team
+ * @version 0.1.4
+ */
 class SpotifyAuthEndpoint {
   final controller: StreamController
   var _timer: Timer
-  /// Map of:
-  /// - `cookies`: Map of cookies from <Cookie>.toJson()
-  /// - `accessToken`: The access token string
-  /// - `expiration`: The expiration timestamp in milliseconds since epoch
+  
+  /**
+   * 인증 정보 (credentials)
+   * 
+   * Map 구조:
+   * - `cookies`: List<Map> - Cookie 객체의 toJson() 결과 목록
+   * - `accessToken`: string - Spotify 액세스 토큰 (374자)
+   * - `expiration`: int - 만료 시간 (milliseconds since epoch)
+   */
   var credentials: Map
   var client: HttpClient
+  var _refreshRetryCount: int = 0
+  final _maxRefreshRetries: int = 3
 
+  /**
+   * 인증 상태 스트림
+   * 
+   * 발생 가능한 이벤트:
+   * - `{type: "login"}`: 로그인 성공
+   * - `{type: "logout"}`: 로그아웃
+   * - `{type: "recovered"}`: 저장된 인증 정보 복구
+   * - `{type: "refreshed"}`: 토큰 갱신 성공
+   * - `{type: "refresh_failed", message: string}`: 토큰 갱신 실패
+   * - `{type: "refresh_retry", attempt: int}`: 토큰 갱신 재시도
+   * - `{type: "error", message: string}`: 에러 발생
+   */
   get authStateStream -> Stream => controller.stream
 
   construct (onEvent: (data) -> void){
@@ -39,7 +115,18 @@ class SpotifyAuthEndpoint {
       }
       if(event["type"] == "recovered" || event["type"] == "login") {
         _timer?.cancel()
-        _timer = Timer.periodic(getExpirationDuration(), (cancel){
+        
+        final duration = getExpirationDuration()
+        
+        // 최소 1초 보장, 만료 1분 전에 갱신하도록 설정
+        final durationMs = duration.inMilliseconds
+        final safeDurationMs = durationMs > 60000 
+          ? durationMs - 60000  // 1분 전에 갱신
+          : (durationMs > 1000 ? durationMs : 1000)  // 최소 1초
+        
+        final safeDuration = Duration(milliseconds: safeDurationMs)
+        
+        _timer = Timer.periodic(safeDuration, (cancel){
           refreshCredentials()
         })
       }
@@ -48,6 +135,11 @@ class SpotifyAuthEndpoint {
     initializeFromLocalStorage()
   }
 
+  /**
+   * 현재 credentials가 만료되었는지 확인
+   * 
+   * @return bool - credentials가 null이거나 만료 시간이 지났으면 true
+   */
   fun isExpired() -> bool {
 		if (credentials == null) {
 			return true
@@ -60,6 +152,11 @@ class SpotifyAuthEndpoint {
 		return currentTime.isAfter(expirationTime)
 	}
 
+  /**
+   * 토큰 만료까지 남은 시간 계산
+   * 
+   * @return Duration - 만료까지 남은 시간 (음수면 이미 만료됨, null이면 0 반환)
+   */
   fun getExpirationDuration() -> Duration {
 		if (credentials == null) {
 			return 0;
@@ -76,11 +173,19 @@ class SpotifyAuthEndpoint {
   fun initializeFromLocalStorage() {
 		LocalStorage.getString("credentials").then((credentialsStr){
       if (credentialsStr != null) {
-        credentials = JSON.decode(credentialsStr);
-        if (isExpired()) {
-          refreshCredentials()
-        } else {
-          controller.add({ type: "recovered" }.toJson())
+        try {
+          credentials = JSON.decode(credentialsStr);
+          if (isExpired()) {
+            refreshCredentials()
+          } else {
+            controller.add({ type: "recovered" }.toJson())
+          }
+        } catch (e) {
+          // JSON 파싱 실패 시 손상된 데이터 제거
+          logger.error("initializeFromLocalStorage", "Failed to parse credentials: ${e}");
+          LocalStorage.remove("credentials");
+          credentials = null;
+          controller.add({type: "error", message: "Failed to recover credentials. Please log in again."}.toJson());
         }
       }
     })
@@ -93,6 +198,9 @@ class SpotifyAuthEndpoint {
       var data = JSON.decode(res.data);
       data.sort((a, b) => b["v"].compareTo(a["v"]))
       return data.first
+    }).catchError((e) {
+      logger.error("getLatestNuance", "Network error: ${e}");
+      throw Exception("Failed to fetch nuance data. Please check your internet connection and try again.");
     })
   }
 
@@ -113,6 +221,9 @@ class SpotifyAuthEndpoint {
           timestampSeconds * 1000 // Convert seconds to milliseconds
         )
       )
+    }).catchError((e) {
+      logger.error("generateTimedOnTimePassword", "Network error: ${e}");
+      throw Exception("Failed to generate TOTP. Please check your internet connection and try again.");
     })
 	}
 
@@ -122,17 +233,17 @@ class SpotifyAuthEndpoint {
     for (int i = 0; i < length; i++) {
       bytes.add(Random().nextInt(256).toString())
     }
+    return bytes.join("")
   }
 
   fun getToken({
-		mode = "transport",
 		timestamp: DateTime,
 		totp: string,
 		spDc: string,
-    mode: string,
+    mode: string = "transport",
     totpVer: int
 	}) -> Future {
-    print("Timestamp: ${timestamp}, TOTP: ${totp}, Mode: ${mode}, spDc: ${spDc}")
+    logger.debug("getToken", "Timestamp: ${timestamp}, TOTP: ${totp}, Mode: ${mode}, spDc: ${spDc}")
     final timestampSeconds = (timestamp.millisecondsSinceEpoch / 1000).floor()
 		final accessTokenUrl = "https://open.spotify.com/api/token?reason=${mode}&productType=web-player&totp=${totp}&totpServer=${totp}&totpVer=${totpVer}"
 
@@ -149,11 +260,32 @@ class SpotifyAuthEndpoint {
       )
     ).then((res){
       return { body: res.data, headers: res.headers }
+    }).catchError((e) {
+      logger.error("getToken", "Network error: ${e}");
+      throw Exception("Failed to get access token. Please check your internet connection and try again.");
     })
 	}
 
+  /**
+   * 쿠키를 사용하여 credentials 생성
+   * 
+   * Spotify 인증 프로세스:
+   * 1. sp_dc 쿠키 추출 및 검증
+   * 2. 최신 nuance 데이터 가져오기
+   * 3. TOTP 생성
+   * 4. 액세스 토큰 발급
+   * 
+   * @param cookies List<Map> - WebView에서 가져온 쿠키 목록
+   * @return Future<Map> - credentials 맵 (cookies, accessToken, expiration)
+   * @throws Exception - sp_dc 쿠키가 없거나, 네트워크 오류 발생 시
+   */
   fun credentialsFromCookie(cookies: List) -> Future {
 		final spDc = cookies.where((c) => c["name"] == "sp_dc").first?["value"];
+
+    // sp_dc 쿠키 검증
+    if (spDc == null || spDc.isEmpty) {
+      throw Exception("Invalid sp_dc cookie: Cookie is required for authentication but was null or empty. Please log in again.")
+    }
 
     return getLatestNuance().then((nuance){
       return generateTimedOnTimePassword(nuance["s"]).then((totp){
@@ -165,8 +297,9 @@ class SpotifyAuthEndpoint {
           totpVer: nuance["v"],
         ).then((res){
           if (res.body["accessToken"] == null) {
-            print(
-              "The access token is only ${res.body["accessToken"]?.length} characters long instead of 374. Your authentication probably doesn't work",
+            logger.warning(
+              "credentialsFromCookie", 
+              "The access token is only ${res.body["accessToken"]?.length} characters long instead of 374. Your authentication probably doesn't work"
             );
           }
 
@@ -180,33 +313,88 @@ class SpotifyAuthEndpoint {
     })
 	}
   
+  /**
+   * 사용자가 인증되었고 토큰이 유효한지 확인
+   * 
+   * @return bool - credentials가 있고 만료되지 않았으면 true
+   */
   fun isAuthenticated() -> bool {
     return credentials != null && !isExpired()
   }
   
+  /**
+   * 쿠키를 사용하여 로그인
+   * 
+   * @param cookies List<Map> - WebView에서 가져온 쿠키 목록
+   * @return Future<void> - 로그인 완료 시 {type: "login"} 이벤트 발생
+   */
   fun login(cookies: List) -> Future {
 		return this.credentialsFromCookie(cookies).then((creds){
-      LocalStorage.setString("credentials", JSON.encode(creds.toJson()));
+      // 경쟁 조건 방지: credentials 먼저 할당 후 저장
       credentials = creds;
+      LocalStorage.setString("credentials", JSON.encode(creds.toJson()));
+
+      // 재시도 카운터 초기화 (로그인 성공 시)
+      _refreshRetryCount = 0;
 
       controller.add({type: "login"}.toJson());
     })
 	}
 
+  /**
+   * 저장된 쿠키를 사용하여 토큰 갱신
+   * 
+   * 재시도 로직:
+   * - 최대 3회까지 자동 재시도
+   * - 3회 실패 시 자동 로그아웃 및 refresh_failed 이벤트 발생
+   * - 성공 시 재시도 카운터 초기화
+   * 
+   * @return Future<void> - 갱신 성공 시 {type: "refreshed"} 이벤트 발생
+   */
 	fun refreshCredentials() -> Future {
 		if (credentials["cookies"] == null) {
-			print(
-				"[refreshCredentials] No cookie found. Cannot refresh credentials.",
+			logger.warning(
+				"refreshCredentials", 
+				"No cookie found. Cannot refresh credentials."
 			);
 			return;
 		}
 		return this.credentialsFromCookie(credentials["cookies"]).then((creds){
-      LocalStorage.setString("credentials", JSON.encode(creds.toJson()));
+      // 경쟁 조건 방지: credentials 먼저 할당 후 저장
       credentials = creds;
+      LocalStorage.setString("credentials", JSON.encode(creds.toJson()));
+      
+      // 재시도 카운터 초기화 (성공 시)
+      _refreshRetryCount = 0;
+      
       controller.add({ type: "refreshed" }.toJson())
+    }).catchError((e) {
+      logger.error("refreshCredentials", "Failed to refresh: ${e}");
+      _refreshRetryCount++;
+      
+      // 최대 재시도 횟수 초과 시 자동 로그아웃
+      if (_refreshRetryCount >= _maxRefreshRetries) {
+        logger.error("refreshCredentials", "Max retry count reached (${_maxRefreshRetries}). Logging out.");
+        _refreshRetryCount = 0;
+        logout();
+        controller.add({ type: "refresh_failed", message: "Failed to refresh credentials after ${_maxRefreshRetries} attempts. Please log in again." }.toJson());
+      } else {
+        controller.add({ type: "refresh_retry", attempt: _refreshRetryCount }.toJson());
+      }
     })
 	}
 
+  /**
+   * WebView를 열어 Spotify 로그인 수행
+   * 
+   * 프로세스:
+   * 1. WebView에서 Spotify 계정 페이지 열기
+   * 2. 로그인 완료 감지 (URL이 /status로 끝남)
+   * 3. 쿠키 추출 및 login() 호출
+   * 4. StreamSubscription 정리하여 메모리 누수 방지
+   * 
+   * @return Future<void> - WebView가 열리면 완료
+   */
   fun authenticate() -> Future {
     var webview = Webview(uri: "https://accounts.spotify.com/")
 
@@ -216,6 +404,8 @@ class SpotifyAuthEndpoint {
       if(exp.hasMatch(safeUrl)) {
         return webview.getCookies(url).then((cookies){
           return login(cookies.map((cookie)=> cookie.toJson()).toList()).then(() {
+            // StreamSubscription 정리 - 메모리 누수 방지
+            sub.cancel()
             return webview.close()
           })
         })
@@ -225,6 +415,15 @@ class SpotifyAuthEndpoint {
     return webview.open()
   }
 
+  /**
+   * 로그아웃 처리
+   * 
+   * 수행 작업:
+   * - credentials를 null로 설정
+   * - LocalStorage에서 credentials 제거
+   * - {type: "logout"} 이벤트 발생
+   * - 자동 갱신 타이머 중지
+   */
 	fun logout() {
 		credentials = null;
 		LocalStorage.remove("credentials");

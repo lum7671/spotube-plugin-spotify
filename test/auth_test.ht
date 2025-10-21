@@ -1,0 +1,189 @@
+import '../src/segments/auth.ht'
+import 'module:std' as std
+
+var DateTime = std.DateTime
+var Duration = std.Duration
+
+// 테스트 헬퍼 함수
+fun assert(condition: bool, message: string) {
+  if (!condition) {
+    throw Exception("Assertion failed: ${message}")
+  }
+}
+
+fun assertEquals(actual, expected, message: string) {
+  if (actual != expected) {
+    throw Exception("${message}: expected ${expected}, got ${actual}")
+  }
+}
+
+// Mock 데이터 생성
+fun createMockCredentials(expirationOffset: int) -> Map {
+  final now = DateTime.now()
+  final expiration = now.millisecondsSinceEpoch + expirationOffset
+  
+  return {
+    cookies: [{name: "sp_dc", value: "test_cookie_value"}],
+    accessToken: "test_access_token_" + "x" * 350, // 374 chars 모방
+    expiration: expiration
+  }
+}
+
+// 테스트 케이스 1: isExpired() - 만료되지 않은 토큰
+fun testIsExpiredNotExpired() {
+  print("\n=== Test: isExpired() - Not Expired ===")
+  
+  final auth = SpotifyAuthEndpoint()
+  
+  // 1시간 후 만료되는 credentials
+  auth.credentials = createMockCredentials(3600000) // 1 hour
+  
+  final result = auth.isExpired()
+  assert(!result, "Credentials should not be expired")
+  
+  print("✅ PASSED: isExpired() correctly returns false for valid credentials")
+}
+
+// 테스트 케이스 2: isExpired() - 만료된 토큰
+fun testIsExpiredExpired() {
+  print("\n=== Test: isExpired() - Expired ===")
+  
+  final auth = SpotifyAuthEndpoint()
+  
+  // 1시간 전에 만료된 credentials
+  auth.credentials = createMockCredentials(-3600000) // -1 hour
+  
+  final result = auth.isExpired()
+  assert(result, "Credentials should be expired")
+  
+  print("✅ PASSED: isExpired() correctly returns true for expired credentials")
+}
+
+// 테스트 케이스 3: isExpired() - null credentials
+fun testIsExpiredNull() {
+  print("\n=== Test: isExpired() - Null Credentials ===")
+  
+  final auth = SpotifyAuthEndpoint()
+  auth.credentials = null
+  
+  final result = auth.isExpired()
+  assert(result, "Null credentials should be considered expired")
+  
+  print("✅ PASSED: isExpired() correctly returns true for null credentials")
+}
+
+// 테스트 케이스 4: getExpirationDuration() - 양수 duration
+fun testGetExpirationDurationPositive() {
+  print("\n=== Test: getExpirationDuration() - Positive Duration ===")
+  
+  final auth = SpotifyAuthEndpoint()
+  
+  // 1시간 후 만료
+  auth.credentials = createMockCredentials(3600000)
+  
+  final duration = auth.getExpirationDuration()
+  
+  // Duration이 약 1시간(3600초)이어야 함
+  final seconds = duration.inSeconds
+  assert(seconds > 3595 && seconds < 3605, "Duration should be approximately 1 hour (3600 seconds), got ${seconds}")
+  
+  print("✅ PASSED: getExpirationDuration() returns correct positive duration")
+}
+
+// 테스트 케이스 5: getExpirationDuration() - 음수 duration
+fun testGetExpirationDurationNegative() {
+  print("\n=== Test: getExpirationDuration() - Negative Duration ===")
+  
+  final auth = SpotifyAuthEndpoint()
+  
+  // 1시간 전에 만료
+  auth.credentials = createMockCredentials(-3600000)
+  
+  final duration = auth.getExpirationDuration()
+  
+  // Duration이 음수여야 함
+  final seconds = duration.inSeconds
+  assert(seconds < 0, "Duration should be negative, got ${seconds}")
+  
+  print("✅ PASSED: getExpirationDuration() returns negative duration for expired credentials")
+}
+
+// 테스트 케이스 6: getExpirationDuration() - null credentials
+fun testGetExpirationDurationNull() {
+  print("\n=== Test: getExpirationDuration() - Null Credentials ===")
+  
+  final auth = SpotifyAuthEndpoint()
+  auth.credentials = null
+  
+  final duration = auth.getExpirationDuration()
+  
+  assertEquals(duration, 0, "Duration should be 0 for null credentials")
+  
+  print("✅ PASSED: getExpirationDuration() returns 0 for null credentials")
+}
+
+// 테스트 케이스 7: randomBytesFromMath() - 길이 확인
+fun testRandomBytesFromMath() {
+  print("\n=== Test: randomBytesFromMath() ===")
+  
+  final auth = SpotifyAuthEndpoint()
+  
+  final result16 = auth.randomBytesFromMath(16)
+  assert(result16.length > 0, "Should generate non-empty string for length 16")
+  
+  final result32 = auth.randomBytesFromMath(32)
+  assert(result32.length > 0, "Should generate non-empty string for length 32")
+  
+  final result1 = auth.randomBytesFromMath(1)
+  assert(result1.length > 0, "Should generate non-empty string for length 1")
+  
+  print("✅ PASSED: randomBytesFromMath() generates strings correctly")
+}
+
+// 테스트 실행
+fun runAllTests() {
+  print("\n" + "=" * 60)
+  print("Starting Unit Tests for SpotifyAuthEndpoint")
+  print("=" * 60)
+  
+  var passed = 0
+  var failed = 0
+  
+  // 테스트 목록
+  final tests = [
+    testIsExpiredNotExpired,
+    testIsExpiredExpired,
+    testIsExpiredNull,
+    testGetExpirationDurationPositive,
+    testGetExpirationDurationNegative,
+    testGetExpirationDurationNull,
+    testRandomBytesFromMath,
+  ]
+  
+  for (var test in tests) {
+    try {
+      test()
+      passed++
+    } catch (e) {
+      print("❌ FAILED: ${e}")
+      failed++
+    }
+  }
+  
+  print("\n" + "=" * 60)
+  print("Test Results")
+  print("=" * 60)
+  print("Total: ${passed + failed}")
+  print("✅ Passed: ${passed}")
+  print("❌ Failed: ${failed}")
+  print("=" * 60)
+  
+  if (failed == 0) {
+    print("\n🎉 All tests passed!")
+  } else {
+    print("\n⚠️  Some tests failed. Please review the errors above.")
+  }
+}
+
+// 메인 실행
+runAllTests()
