@@ -16,9 +16,6 @@ class ArtistEndpoint {
         return null
       }
       return Converters.fullArtists([data])[0]
-    }).catchError((error) {
-      handleError("getArtist", error, "Failed to fetch artist: ${id}")
-      throw error
     })
   }
 
@@ -32,9 +29,6 @@ class ArtistEndpoint {
         hasMore: false,
         items: Converters.fullTracks(data["tracks"])
       }.toJson()
-    }).catchError((error) {
-      handleError("topTracks", error, "Failed to fetch top tracks for artist: ${id}")
-      throw error
     })
   }
 
@@ -42,26 +36,17 @@ class ArtistEndpoint {
     logger.debug("albums", "Fetching albums for artist: ${id}")
     return client.artist.albums(id, offset: offset, limit: limit).then((data) {
       return Converters.paginated(data, (items) => Converters.simpleAlbums(items))
-    }).catchError((error) {
-      handleError("albums", error, "Failed to fetch albums for artist: ${id}")
-      throw error
     })
   }
 
   fun save(artistIds: List) {
     logger.info("save", "Following ${artistIds.length} artist(s)")
-    return client.artist.follow(artistIds).then(() => true).catchError((error) {
-      handleError("save", error, "Failed to follow artists")
-      throw error
-    })
+    return client.artist.follow(artistIds).then(() => true)
   }
 
   fun unsave(artistIds: List) {
     logger.info("unsave", "Unfollowing ${artistIds.length} artist(s)")
-    return client.artist.unfollow(artistIds).then(() => true).catchError((error) {
-      handleError("unsave", error, "Failed to unfollow artists")
-      throw error
-    })
+    return client.artist.unfollow(artistIds).then(() => true)
   }
 
   fun related(id: string, {offset: int, limit: int}) {
@@ -76,9 +61,6 @@ class ArtistEndpoint {
         hasMore: false,
         items: artists
       }.toJson()
-    }).catchError((error) {
-      handleError("related", error, "Failed to fetch related artists for: ${id}")
-      throw error
     })
   }
 }

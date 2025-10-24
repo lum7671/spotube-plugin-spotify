@@ -12,9 +12,6 @@ class UserEndpoint {
     logger.info("me", "Fetching current user profile")
     return client.user.me().then((data){
       return Converters.simpleUser(data)
-    }).catchError((error) {
-      handleError("me", error, "Failed to fetch user profile")
-      throw error
     })
   }
 
@@ -22,10 +19,7 @@ class UserEndpoint {
     logger.debug("savedTracks", "Fetching saved tracks, offset: ${offset}, limit: ${limit}")
     return client.user.savedTracks(offset: offset, limit: limit).then(
       (data) => Converters.paginated(data, (items) => Converters.fullTracks(items))
-    ).catchError((error) {
-      handleError("savedTracks", error, "Failed to fetch saved tracks")
-      throw error
-    })
+    )
   }
 
   fun savedPlaylists({ offset: int, limit: int }) {
@@ -35,9 +29,6 @@ class UserEndpoint {
         data, 
         (items) => Converters.simplePlaylistsFromLibraryV3(data["items"])
       )
-    }).catchError((error) {
-      handleError("savedPlaylists", error, "Failed to fetch saved playlists")
-      throw error
     })
   }
 
@@ -48,9 +39,6 @@ class UserEndpoint {
         data, 
         (items) => Converters.simpleAlbums(items)
       )
-    }).catchError((error) {
-      handleError("savedAlbums", error, "Failed to fetch saved albums")
-      throw error
     })
   }
 
@@ -61,9 +49,6 @@ class UserEndpoint {
         data, 
         (items) => Converters.fullArtists(items)
       )
-    }).catchError((error) {
-      handleError("savedArtists", error, "Failed to fetch saved artists")
-      throw error
     })
   }
 

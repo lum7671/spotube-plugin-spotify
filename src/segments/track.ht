@@ -16,32 +16,19 @@ class TrackEndpoint {
         return null
       }
       return Converters.fullTracks([data])[0]
-    }).catchError((error) {
-      handleError("getTrack", error, "Failed to fetch track: ${id}")
-      throw error
     })
   }
 
   fun save(trackIds: List) async {
     logger.info("save", "Saving ${trackIds.length} track(s)")
-    try {
-      await client.track.save(trackIds)
-      return true
-    } catch (error) {
-      handleError("save", error, "Failed to save tracks")
-      throw error
-    }
+    await client.track.save(trackIds)
+    return true
   }
 
   fun unsave(trackIds: List) async {
     logger.info("unsave", "Removing ${trackIds.length} track(s) from library")
-    try {
-      await client.track.unsave(trackIds)
-      return true
-    } catch (error) {
-      handleError("unsave", error, "Failed to unsave tracks")
-      throw error
-    }
+    await client.track.unsave(trackIds)
+    return true
   }
 
   fun radio(trackId: string) {
@@ -73,9 +60,6 @@ class TrackEndpoint {
             return Converters.fullTracks(tracks)
           });
       })
-    }).catchError((error) {
-      handleError("radio", error, "Failed to generate radio for track: ${trackId}")
-      throw error
     })
   }
 }

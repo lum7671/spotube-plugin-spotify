@@ -27,9 +27,6 @@ class SearchEndpoint {
       }.toJson()
 
       return result
-    }).catchError((error) {
-      handleError("all", error, "Failed to search for: ${query}")
-      throw error
     })
   }
 

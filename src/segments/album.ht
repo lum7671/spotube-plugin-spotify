@@ -16,9 +16,6 @@ class AlbumEndpoint {
         return null
       }
       return Converters.fullAlbums([album])[0]
-    }).catchError((error) {
-      handleError("getAlbum", error, "Failed to fetch album: ${id}")
-      throw error
     })
   }
 
@@ -26,9 +23,6 @@ class AlbumEndpoint {
     logger.debug("tracks", "Fetching tracks for album: ${id}, offset: ${offset}, limit: ${limit}")
     return client.album.tracks(id, offset: offset, limit: limit).then((data) {
       return Converters.paginated(data, (items) => Converters.fullTracks(items))
-    }).catchError((error) {
-      handleError("tracks", error, "Failed to fetch album tracks: ${id}")
-      throw error
     })
   }
 
@@ -36,25 +30,16 @@ class AlbumEndpoint {
     logger.debug("releases", "Fetching new releases, offset: ${offset}, limit: ${limit}")
     return client.album.releases(offset: offset, limit: limit).then((data){
       return Converters.paginated(data, (items)=> Converters.simpleAlbums(items))
-    }).catchError((error) {
-      handleError("releases", error, "Failed to fetch new releases")
-      throw error
     })
   }
 
   fun save(albumIds: List) {
     logger.info("save", "Saving ${albumIds.length} album(s)")
-    return client.album.save(albumIds).catchError((error) {
-      handleError("save", error, "Failed to save albums")
-      throw error
-    })
+    return client.album.save(albumIds)
   }
 
   fun unsave(albumIds: List) {
     logger.info("unsave", "Removing ${albumIds.length} album(s) from library")
-    return client.album.unsave(albumIds).catchError((error) {
-      handleError("unsave", error, "Failed to unsave albums")
-      throw error
-    })
+    return client.album.unsave(albumIds)
   }
 }

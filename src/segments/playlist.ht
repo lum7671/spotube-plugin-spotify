@@ -16,9 +16,6 @@ class PlaylistEndpoint {
         return null
       }
       return Converters.fullPlaylists([data])[0]
-    }).catchError((error) {
-      handleError("getPlaylist", error, "Failed to fetch playlist: ${id}")
-      throw error
     })
   }
 
@@ -35,9 +32,6 @@ class PlaylistEndpoint {
       paginated["items"] = paginated["items"].where((item) => item != null && item["id"] != null).toList()
 
       return paginated
-    }).catchError((error) {
-      handleError("tracks", error, "Failed to fetch playlist tracks: ${id}")
-      throw error
     })
   }
 
@@ -95,18 +89,12 @@ class PlaylistEndpoint {
 
   fun save(playlistId: string) {
     logger.info("save", "Following playlist: ${playlistId}")
-    return client.playlist.follow(playlistId).catchError((error) {
-      handleError("save", error, "Failed to follow playlist")
-      throw error
-    })
+    return client.playlist.follow(playlistId)
   }
 
   fun unsave(playlistId: string) {
     logger.info("unsave", "Unfollowing playlist: ${playlistId}")
-    return client.playlist.unfollow(playlistId).catchError((error) {
-      handleError("unsave", error, "Failed to unfollow playlist")
-      throw error
-    })
+    return client.playlist.unfollow(playlistId)
   }
 }
 
