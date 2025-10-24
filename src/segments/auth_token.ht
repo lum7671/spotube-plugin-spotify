@@ -1,0 +1,90 @@
+import 'module:std' as std
+import { logger } from '../util/logger.ht'
+
+var HttpClient = std.HttpClient
+var HttpResponse = std.HttpResponse
+var RequestOptions = std.RequestOptions
+var DateTime = std.DateTime
+
+/**
+ * 토큰 생성 유틸리티
+ * 
+ * Spotify 액세스 토큰을 생성하기 위한 함수들을 제공합니다.
+ * TOTP와 sp_dc 쿠키를 사용하여 인증 토큰을 발급받습니다.
+ */
+
+/**
+ * 난수 바이트 문자열 생성
+ * 
+ * User-Agent 생성 등에 사용할 난수 바이트 문자열을 생성합니다.
+ * 
+ * @param length 생성할 바이트 길이
+ * @return string - 랜덤 바이트로 구성된 문자열
+ * 
+ * 사용 예시:
+ * ```
+ * final randomStr = randomBytesFromMath(16)
+ * print("Random bytes: ${randomStr}")
+ * ```
+ */
+fun randomBytesFromMath(length: int) -> string {
+  var bytes = List()
+
+  for (int i = 0; i < length; i++) {
+    bytes.add(Random().nextInt(256).toString())
+  }
+  return bytes.join("")
+}
+
+/**
+ * Spotify 액세스 토큰 발급
+ * 
+ * TOTP와 sp_dc 쿠키를 사용하여 Spotify 웹 플레이어 API로부터 액세스 토큰을 발급받습니다.
+ * 
+ * @param timestamp 현재 시간 (DateTime)
+ * @param totp TOTP 코드 (6자리)
+ * @param spDc sp_dc 쿠키 값
+ * @param mode 토큰 모드 (기본값: "transport")
+ * @param totpVer TOTP 버전 (nuance 버전)
+ * @return Future<{body: Map, headers: Map}> - 응답 본문과 헤더
+ * 
+ * 사용 예시:
+ * ```
+ * getToken(
+ *   timestamp: DateTime.now(),
+ *   totp: "123456",
+ *   spDc: "sp_dc=cookie_value;",
+ *   mode: "transport",
+ *   totpVer: 1
+ * ).then((res) {
+ *   print("Access token: ${res.body['accessToken']}")
+ * })
+ * ```
+ */
+fun getToken({
+  timestamp: DateTime,
+  totp: string,
+  spDc: string,
+  mode: string = "transport",
+  totpVer: int
+}) {
+  logger.debug("getToken", "Timestamp: ${timestamp}, TOTP: ${totp}, Mode: ${mode}, spDc: ${spDc}")
+  final timestampSeconds = (timestamp.millisecondsSinceEpoch / 1000).floor()
+  final accessTokenUrl = "https://open.spotify.com/api/token?reason=${mode}&productType=web-player&totp=${totp}&totpServer=${totp}&totpVer=${totpVer}"
+
+  final userAgent = "${DateTime.now().millisecondsSinceEpoch}${Random().nextInt(100) * 1000}${randomBytesFromMath(16)}"
+    .split("").join("")
+
+  final client = HttpClient()
+  return client.get_req(
+    accessTokenUrl, 
+    options: RequestOptions(
+      headers: {
+        "Cookie": spDc ?? "",
+        "User-Agent": userAgent,
+      }.toJson(),
+    )
+  ).then((res){
+    return { body: res.data, headers: res.headers }
+  })
+}

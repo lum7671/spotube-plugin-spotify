@@ -1,0 +1,79 @@
+import 'module:std' as std
+import { TOTP, OTPAlgorithm } from '../../dependencies/hetu_otp_util/lib/assets/hetu/otp_util.ht'
+
+var HttpClient = std.HttpClient
+var HttpResponse = std.HttpResponse
+var JSON = std.JSON
+var DateTime = std.DateTime
+
+/**
+ * TOTP (Time-based One-Time Password) 생성 유틸리티
+ * 
+ * Spotify 인증에 필요한 TOTP 토큰을 생성합니다.
+ * Codeberg에서 최신 nuance 정보를 가져와 TOTP를 생성하는 기능을 제공합니다.
+ */
+
+/**
+ * 최신 Nuance 정보를 가져옴
+ * 
+ * Codeberg 저장소에서 TOTP 생성에 필요한 secret과 버전 정보를 조회합니다.
+ * 
+ * @return Future<{v: int, s: string}> - 버전(v)과 시크릿(s) 정보
+ * 
+ * 사용 예시:
+ * ```
+ * getLatestNuance().then((nuance) {
+ *   final version = nuance["v"]
+ *   final secret = nuance["s"]
+ * })
+ * ```
+ */
+fun getLatestNuance() {
+  final client = HttpClient()
+  
+  return client.get_req(
+    "https://codeberg.org/sonic-liberation/blubber-junkyard-elitism/raw/branch/main/nuances.json"
+  ).then((res) {
+    var data = JSON.decode(res.data)
+    data.sort((a, b) => b["v"].compareTo(a["v"]))
+    return data.first
+  })
+}
+
+/**
+ * 시간 기반 일회용 비밀번호 생성
+ * 
+ * Spotify의 서버 시간을 기준으로 TOTP 토큰을 생성합니다.
+ * SHA1 알고리즘, 6자리, 30초 간격으로 생성됩니다.
+ * 
+ * @param secret TOTP 생성에 사용할 시크릿 키
+ * @return Future<string> - 생성된 6자리 TOTP 코드
+ * 
+ * 사용 예시:
+ * ```
+ * generateTimedOnTimePassword("secret_key").then((totp) {
+ *   print("Generated TOTP: ${totp}")
+ * })
+ * ```
+ */
+fun generateTimedOnTimePassword(secret: string) {
+  final client = HttpClient()
+  
+  return client.get_req("https://open.spotify.com/api/server-time")
+    .then((res) {
+      final timestampSeconds = res.data["serverTime"]
+
+      final totp = TOTP(
+        secret: secret,
+        algorithm: OTPAlgorithm.SHA1,
+        digits: 6,
+        interval: 30,
+      )
+
+      return totp.value(
+        date: DateTime.fromMillisecondsSinceEpoch(
+          timestampSeconds * 1000 // Convert seconds to milliseconds
+        )
+      )
+    })
+}

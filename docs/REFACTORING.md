@@ -839,51 +839,163 @@ src/
 - ✅ 유틸리티 함수들이 독립적으로 테스트 가능
 - ✅ 각 모듈의 책임이 명확해져 단위 테스트 작성 용이
 
-### 🎯 다음 단계 (Phase 2)
+---
 
-Phase 1이 성공적으로 완료되었습니다. 다음은 Phase 2 작업 내용입니다:
+## 📦 Phase 2: Auth 모듈 분리 (2025-10-24)
 
-#### Phase 2: Auth 모듈 분리 (Week 2)
+### 🎯 목표
 
-**목표**: auth.ht 656 lines → 300 lines 이하로 감소
+**목표**: auth.ht 656 lines → 300 lines 이하로 감소  
+**실제 결과**: 656 lines → 506 lines (**150줄 감소, -22.9%**)
 
-**Day 1-2: TOTP 분리**
+### 📊 작업 결과
 
-- [ ] `src/segments/auth_totp.ht` 생성 (~50 lines)
-- [ ] `generateTimedOnTimePassword()` 이동
-- [ ] `getLatestNuance()` 이동
+#### 생성된 파일
 
-**Day 3-4: Token 관리 분리**
+1. **`src/segments/auth_totp.ht`** (79 lines)
+   - `getLatestNuance()` - Codeberg에서 최신 TOTP secret 가져오기
+   - `generateTimedOnTimePassword()` - Spotify 서버 시간 기준 TOTP 생성
+   - TOTP 알고리즘: SHA1, 6자리, 30초 간격
 
-- [ ] `src/segments/auth_token.ht` 생성 (~100 lines)
-- [ ] `getToken()` 이동
-- [ ] `randomBytesFromMath()`, `generateFakeDeviceId()` 등 이동
+2. **`src/segments/auth_token.ht`** (90 lines)
+   - `getToken()` - 액세스 토큰 발급
+   - `randomBytesFromMath()` - User-Agent용 난수 생성
+   - 커스텀 헤더 및 쿠키 관리
 
-**Day 5: Credentials 처리 분리**
+3. **`src/segments/auth_credentials.ht`** (108 lines)
+   - `credentialsFromData()` - 쿠키에서 credentials 생성
+   - sp_dc 쿠키 파싱 및 검증
+   - TOTP + Token 연계 인증 플로우
 
-- [ ] `src/segments/auth_credentials.ht` 생성 (~100 lines)
-- [ ] `credentialsFromData()` 이동
-- [ ] 쿠키 파싱 로직 이동
+#### 파일 크기 변화
+
+```text
+Before Phase 2:
+  656  src/segments/auth.ht
+
+After Phase 2:
+   79  src/segments/auth_totp.ht
+   90  src/segments/auth_token.ht
+  108  src/segments/auth_credentials.ht
+  506  src/segments/auth.ht
+  ---
+  783  total (3개 파일 추가로 +127줄 증가했지만 auth.ht는 150줄 감소)
+```
+
+### ✅ 완료된 작업
+
+**Day 1: TOTP 분리**
+
+- ✅ `src/segments/auth_totp.ht` 생성 (79 lines)
+- ✅ `generateTimedOnTimePassword()` 이동
+- ✅ `getLatestNuance()` 이동
+- ✅ HttpResponse 타입 선언 추가
+
+**Day 2: Token 관리 분리**
+
+- ✅ `src/segments/auth_token.ht` 생성 (90 lines)
+- ✅ `getToken()` 이동
+- ✅ `randomBytesFromMath()` 이동
+- ✅ Random() 내장 함수 사용 (var 선언 제거)
+
+**Day 3: Credentials 처리 분리**
+
+- ✅ `src/segments/auth_credentials.ht` 생성 (108 lines)
+- ✅ `credentialsFromData()` 이동
+- ✅ sp_dc 쿠키 파싱 로직 이동
+- ✅ 인증 플로우 검증 로직 유지
+
+**Day 4: 테스트 및 검증**
+
+- ✅ 컴파일 성공 확인
+- ✅ Example 앱 실행 테스트
+- ✅ 로그인 플로우 정상 작동 확인
+- ✅ 토큰 생성 및 저장 검증 완료
+
+### � 해결된 이슈
+
+1. **HttpResponse undefined 에러**
+   - 원인: auth_totp.ht에서 HttpResponse 타입 선언 누락
+   - 해결: `var HttpResponse = std.HttpResponse` 추가
+
+2. **Random() undefined 에러**
+   - 원인: auth_token.ht에서 `var Random = std.Random` 선언 시 함수 내 인식 안 됨
+   - 해결: Random은 Hetu Script 내장 함수이므로 var 선언 제거
+
+3. **Import 구조 정리**
+   - auth.ht의 import 최소화
+   - 각 모듈에 필요한 타입만 선언
+
+### 🎯 달성 효과
+
+#### 코드 품질 향상
+
+- ✅ **모듈화**: 인증 로직을 TOTP, Token, Credentials 3개 모듈로 분리
+- ✅ **가독성**: auth.ht 150줄 감소로 메인 로직 파악 용이
+- ✅ **유지보수성**: 각 기능별 파일 분리로 수정 범위 최소화
+- ✅ **재사용성**: auth_totp, auth_token 모듈은 독립적으로 사용 가능
+
+#### 테스트 결과
+
+```text
+flutter: [2025-10-24 10:28:54.312289] [INFO] [credentialsFromData] Starting token generation...
+flutter: [2025-10-24 10:28:55.543679] [INFO] [login] Credentials generated successfully
+flutter: [2025-10-24 10:28:55.547155] [INFO] [login] Credentials saved successfully
+flutter: [2025-10-24 10:28:55.547741] [INFO] [_performAuthentication] Login successful!
+flutter: [CHECK AUTH STATUS] Result: {authenticated: true, isAuthenticated: true, hasCredentials: true, isExpired: false, expiresIn: 0시간 55분}
+```
+
+- ✅ 로그인 성공
+- ✅ Credentials 저장 완료
+- ✅ 인증 상태 정상
+- ✅ 토큰 만료 시간 55분 확인
+
+### 🎯 다음 단계 (Phase 3)
+
+Phase 2가 성공적으로 완료되었습니다. 다음은 Phase 3 작업 내용입니다:
+
+#### Phase 3: 나머지 Segment 적용 (Week 3)
+
+**목표**: 모든 segment 파일에 유틸리티 적용 및 코드 정리
+
+**Day 1-3: 유틸리티 적용**
+
+- [ ] album.ht, artist.ht, playlist.ht에 logger 적용
+- [ ] search.ht, track.ht, user.ht에 error_handler 적용
+- [ ] converter.ht 리팩토링 검토
+
+**Day 4-5: 최종 검증 및 문서화**
+
+- [ ] 전체 테스트 실행
+- [ ] API 문서 업데이트
+- [ ] 성능 측정 및 비교
 
 ### 📝 교훈 및 개선점
 
-**성공 요인**:
+**Phase 2 성공 요인**:
 
-1. ✅ 작은 단위로 나누어 진행 (Logger → Cookie → Error Handler)
-2. ✅ 각 단계마다 컴파일 및 테스트 수행
-3. ✅ 기존 API 변경 없이 내부 구현만 개선
-4. ✅ 실제 앱 실행으로 동작 검증
+1. ✅ 기능별로 명확하게 분리 (TOTP → Token → Credentials)
+2. ✅ 각 단계마다 컴파일 및 실행 테스트
+3. ✅ Hetu Script 문법 제약 사항 빠르게 파악 및 대응
+4. ✅ 실제 로그인 플로우로 end-to-end 검증
+
+**새롭게 발견한 Hetu Script 특성**:
+
+1. 🔸 **Random()은 내장 함수**: var 선언 불필요, 직접 사용
+2. 🔸 **HttpResponse 타입 필수**: 각 모듈에서 명시적 선언 필요
+3. 🔸 **List는 내장 타입**: import 없이 사용 가능
+4. 🔸 **함수 내 타입 추론**: 명시적 타입 선언이 안전
 
 **개선 필요 사항**:
 
-1. 🔸 Hetu Script 문법 제약 (private 키워드, 기본 파라미터 등) 사전 파악 필요
-2. 🔸 타입 선언 시 초기화 필요성 문서화
-3. 🔸 더 많은 단위 테스트 케이스 작성 권장
+1. 🔸 auth_totp.ht와 auth_token.ht를 더 작은 단위로 분리 고려
+2. 🔸 각 모듈에 대한 단위 테스트 추가 필요
+3. 🔸 에러 핸들링을 더 세분화하여 각 모듈에 적용
 
 ---
 
 **작성자**: AI Assistant  
 **최종 수정**: 2025-10-24  
-**상태**: Phase 1 완료 ✅ | Phase 2 대기 중
+**상태**: Phase 2 완료 ✅ | Phase 3 대기 중
 
 ````
