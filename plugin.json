@@ -1,6 +1,6 @@
 {
   "type": "metadata",
-  "version": "0.9.0",
+  "version": "1.0.0",
   "name": "MySpotify",
   "author": "Nate Doohyun Jang",
   "description": "Spotube plugin for Spotify metadata",
