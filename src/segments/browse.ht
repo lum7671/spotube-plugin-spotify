@@ -3,6 +3,8 @@ import "module:spotube_plugin" as spotube
 import { SpotifyGqlApi } from '../../dependencies/hetu_spotify_gql_client/lib/assets/hetu/spotify_gql_api_client.ht'
 import { Converters } from '../converter/converter.ht'
 import { SpotifyAuthEndpoint } from "./auth.ht"
+import { getCookieValue } from '../util/cookie_util.ht'
+import { handleAuthError } from '../util/error_handler.ht'
 
 var Timezone = spotube.Timezone
 
@@ -15,13 +17,12 @@ class BrowseEndpoint {
   fun sections({offset: int, limit: int}) {
     // 인증되지 않은 경우 체크
     if (auth.credentials == null) {
-      throw "Authentication required. Please login first."
+      handleAuthError("BrowseEndpoint.sections", "Authentication required. Please login first.")
     }
     
     return Timezone.getLocalTimeZone().then((timeZone){
-      // sp_t 쿠키 찾기 (없으면 빈 문자열 사용)
-      final spTCookies = auth.credentials["cookies"].where((c)=>c["name"] == "sp_t").toList()
-      final spTValue = spTCookies.length > 0 ? spTCookies[0]["value"] : ""
+      // sp_t 쿠키 가져오기
+      final spTValue = getCookieValue(auth.credentials, "sp_t")
       
       return client.browse.home(
         timeZone: timeZone,
@@ -58,13 +59,12 @@ class BrowseEndpoint {
   fun sectionItems(id: string, {offset: int, limit: int}) {
     // 인증되지 않은 경우 체크
     if (auth.credentials == null) {
-      throw "Authentication required. Please login first."
+      handleAuthError("BrowseEndpoint.sectionItems", "Authentication required. Please login first.")
     }
     
     return Timezone.getLocalTimeZone().then((timeZone) {
-      // sp_t 쿠키 찾기 (없으면 빈 문자열 사용)
-      final spTCookies = auth.credentials["cookies"].where((c)=>c["name"] == "sp_t").toList()
-      final spTValue = spTCookies.length > 0 ? spTCookies[0]["value"] : ""
+      // sp_t 쿠키 가져오기
+      final spTValue = getCookieValue(auth.credentials, "sp_t")
       
       return client.browse.homeSection(
         id, 

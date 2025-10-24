@@ -1,6 +1,7 @@
 # 🐛 발견된 문제점 및 개선 사항
 
 ## 문서 정보
+
 - **작성일**: 2025년 10월 21일
 - **분석 대상**: `src/segments/auth.ht`
 - **우선순위**: 🔴 긴급 | 🟡 중요 | 🟢 권장
@@ -14,6 +15,7 @@
 **파일**: `src/segments/auth.ht` (Line ~115)
 
 **문제점**:
+
 ```javascript
 fun randomBytesFromMath(length: int) -> string {
   var bytes = List()
@@ -25,11 +27,13 @@ fun randomBytesFromMath(length: int) -> string {
 ```
 
 **영향**:
+
 - User-Agent 생성 시 `undefined` 또는 `null`이 포함됨
 - HTTP 요청이 실패하거나 비정상적인 User-Agent가 전송됨
 - 토큰 발급 실패 가능성
 
 **수정 방안**:
+
 ```javascript
 fun randomBytesFromMath(length: int) -> string {
   var bytes = List()
@@ -49,6 +53,7 @@ fun randomBytesFromMath(length: int) -> string {
 **파일**: `src/segments/auth.ht` (Line ~125)
 
 **문제점**:
+
 ```javascript
 fun getToken({
   mode = "transport",    // ❌ 기본값 설정
@@ -61,11 +66,13 @@ fun getToken({
 ```
 
 **영향**:
+
 - 컴파일 에러 또는 예상치 못한 동작
 - 매개변수 값이 덮어써질 가능성
 - 코드 가독성 저하
 
 **수정 방안**:
+
 ```javascript
 fun getToken({
   timestamp: DateTime,
@@ -87,6 +94,7 @@ fun getToken({
 **파일**: `src/segments/auth.ht` (Line ~40-45)
 
 **문제점**:
+
 ```javascript
 _timer = Timer.periodic(getExpirationDuration(), (cancel){
   refreshCredentials()
@@ -94,11 +102,13 @@ _timer = Timer.periodic(getExpirationDuration(), (cancel){
 ```
 
 **영향**:
+
 - `getExpirationDuration()`이 0 또는 음수일 경우 즉시/무한 실행
 - 이미 만료된 토큰일 때 무한 루프 가능성
 - CPU 자원 낭비
 
 **수정 방안**:
+
 ```javascript
 if(event["type"] == "recovered" || event["type"] == "login") {
   _timer?.cancel()
@@ -125,6 +135,7 @@ if(event["type"] == "recovered" || event["type"] == "login") {
 **파일**: `src/segments/auth.ht` (Line ~155)
 
 **문제점**:
+
 ```javascript
 fun credentialsFromCookie(cookies: List) -> Future {
   final spDc = cookies.where((c) => c["name"] == "sp_dc").first?["value"];
@@ -137,11 +148,13 @@ fun credentialsFromCookie(cookies: List) -> Future {
 ```
 
 **영향**:
+
 - `sp_dc` 쿠키가 없을 때 토큰 발급 실패
 - 사용자에게 명확한 에러 메시지 없음
 - 디버깅 어려움
 
 **수정 방안**:
+
 ```javascript
 fun credentialsFromCookie(cookies: List) -> Future {
   final spDc = cookies.where((c) => c["name"] == "sp_dc").first?["value"];
@@ -166,6 +179,7 @@ fun credentialsFromCookie(cookies: List) -> Future {
 **파일**: `src/segments/auth.ht` (Line ~210)
 
 **문제점**:
+
 ```javascript
 fun authenticate() -> Future {
   var webview = Webview(uri: "https://accounts.spotify.com/")
@@ -180,11 +194,13 @@ fun authenticate() -> Future {
 ```
 
 **영향**:
+
 - StreamSubscription이 해제되지 않아 메모리 누수
 - WebView 닫힌 후에도 리스너가 살아있음
 - 반복적인 로그인 시 메모리 사용량 증가
 
 **수정 방안**:
+
 ```javascript
 fun authenticate() -> Future {
   var webview = Webview(uri: "https://accounts.spotify.com/")
@@ -218,6 +234,7 @@ fun authenticate() -> Future {
 **파일**: `src/segments/auth.ht` (Line ~72-80)
 
 **문제점**:
+
 ```javascript
 fun initializeFromLocalStorage() {
   LocalStorage.getString("credentials").then((credentialsStr){
@@ -234,10 +251,12 @@ fun initializeFromLocalStorage() {
 ```
 
 **영향**:
+
 - 손상된 JSON 데이터로 인한 앱 크래시
 - LocalStorage 데이터 변조 시 예외 처리 없음
 
 **수정 방안**:
+
 ```javascript
 fun initializeFromLocalStorage() {
   LocalStorage.getString("credentials").then((credentialsStr){
@@ -267,6 +286,7 @@ fun initializeFromLocalStorage() {
 **파일**: `src/segments/auth.ht` (Line ~72-80)
 
 **문제점**:
+
 ```javascript
 fun initializeFromLocalStorage() {
   LocalStorage.getString("credentials").then((credentialsStr){
@@ -281,10 +301,12 @@ fun initializeFromLocalStorage() {
 ```
 
 **영향**:
+
 - `refreshCredentials()` 내부에서 `credentials["cookies"]` 접근 시 타이밍 이슈
 - 비동기 처리로 인한 예측 불가능한 동작
 
 **수정 방안**:
+
 ```javascript
 fun initializeFromLocalStorage() {
   LocalStorage.getString("credentials").then((credentialsStr){
@@ -316,6 +338,7 @@ fun initializeFromLocalStorage() {
 **파일**: `src/segments/auth.ht` (여러 위치)
 
 **문제점**:
+
 ```javascript
 fun getLatestNuance() -> Future {
   return client.get_req(
@@ -330,11 +353,13 @@ fun getLatestNuance() -> Future {
 ```
 
 **영향**:
+
 - 네트워크 연결 없을 때 앱 멈춤
 - API 서버 다운 시 처리 불가
 - 사용자에게 명확한 에러 메시지 없음
 
 **수정 방안**:
+
 ```javascript
 fun getLatestNuance() -> Future {
   return client.get_req(
@@ -366,6 +391,7 @@ fun getLatestNuance() -> Future {
 **파일**: `src/segments/auth.ht` (Line ~195-205)
 
 **문제점**:
+
 ```javascript
 fun refreshCredentials() -> Future {
   if (credentials["cookies"] == null) {
@@ -382,10 +408,12 @@ fun refreshCredentials() -> Future {
 ```
 
 **영향**:
+
 - 토큰 갱신 실패 시 무한 재시도 가능성
 - 사용자가 재로그인 필요함을 알 수 없음
 
 **수정 방안**:
+
 ```javascript
 var _refreshRetryCount: int = 0
 final _maxRefreshRetries: int = 3
@@ -439,17 +467,20 @@ fun refreshCredentials() -> Future {
 ## 🔄 처리 체크리스트
 
 ### Phase 1: 긴급 수정 (즉시)
+
 - [ ] #1: `randomBytesFromMath()` return 추가
 - [ ] #2: `getToken()` 중복 매개변수 제거
 - [ ] 테스트: 로그인 및 토큰 발급 확인
 
 ### Phase 2: 중요 수정 (1주일 이내)
+
 - [ ] #3: Timer 검증 로직 추가
 - [ ] #4: `sp_dc` 쿠키 검증
 - [ ] #5: WebView 리스너 정리
 - [ ] 테스트: 토큰 자동 갱신, 메모리 누수 확인
 
 ### Phase 3: 품질 개선 (2주일 이내)
+
 - [ ] #6: JSON 파싱 try-catch 추가
 - [ ] #7: 경쟁 조건 해결
 - [ ] #8: 네트워크 에러 처리
@@ -461,7 +492,9 @@ fun refreshCredentials() -> Future {
 ## 📝 추가 개선 제안
 
 ### 로깅 시스템 개선
+
 현재 `print()` 사용 중 → 구조화된 로깅 시스템 도입 권장
+
 ```javascript
 enum LogLevel { DEBUG, INFO, WARN, ERROR }
 
@@ -471,11 +504,13 @@ fun log(level: LogLevel, message: string, context: Map = null) {
 ```
 
 ### 테스트 코드 작성
+
 - 단위 테스트: 각 함수별 테스트
 - 통합 테스트: 로그인 → 토큰 갱신 → 로그아웃 플로우
 - 에러 시나리오 테스트
 
 ### 문서화
+
 - API 문서 자동 생성
 - 에러 코드 및 처리 방법 문서화
 - 사용자 가이드 업데이트
@@ -485,6 +520,7 @@ fun log(level: LogLevel, message: string, context: Map = null) {
 ## 📞 문의 및 보고
 
 문제 발견 또는 개선 제안 시:
+
 1. GitHub Issues에 보고
 2. PR 제출 시 이 체크리스트 참조
 3. 테스트 결과 포함 필수

@@ -1,11 +1,12 @@
 import 'module:std' as std
 import 'module:spotube_plugin' as spotube
 import { TOTP, OTPAlgorithm } from '../../dependencies/hetu_otp_util/lib/assets/hetu/otp_util.ht';
+import { logger } from '../util/logger.ht';
+import { handleValidationError, warnMissingData, logParseError } from '../util/error_handler.ht';
 
 var StreamController = std.StreamController
 var Stream = std.Stream
 var StreamSubscription = std.StreamSubscription
-// var Future = std.Future  // ⚠️ Future 타입이 Hetu에서 제대로 작동하지 않음
 var DateTime = std.DateTime
 var Duration = std.Duration
 var HttpClient = std.HttpClient
@@ -16,56 +17,6 @@ var JSON = std.JSON
 var Regex = std.Regex
 var LocalStorage = spotube.LocalStorage
 var Webview = spotube.Webview
-
-// 로깅 레벨
-enum LogLevel {
-  DEBUG,
-  INFO,
-  WARNING,
-  ERROR
-}
-
-// 로깅 시스템
-class Logger {
-  var enabled: bool = true
-  var minLevel: LogLevel = LogLevel.INFO
-
-  fun log(level: LogLevel, tag: string, message: string) {
-    if (!enabled) return;
-    
-    // 레벨 체크 (enum.index 대신 직접 비교)
-    // DEBUG < INFO < WARNING < ERROR 순서
-    if (minLevel == LogLevel.INFO && level == LogLevel.DEBUG) return;
-    if (minLevel == LogLevel.WARNING && (level == LogLevel.DEBUG || level == LogLevel.INFO)) return;
-    if (minLevel == LogLevel.ERROR && level != LogLevel.ERROR) return;
-    
-    final levelStr = level == LogLevel.DEBUG ? "DEBUG" :
-                     level == LogLevel.INFO ? "INFO" :
-                     level == LogLevel.WARNING ? "WARN" :
-                     "ERROR";
-    
-    final timestamp = DateTime.now().toString();
-    print("[${timestamp}] [${levelStr}] [${tag}] ${message}");
-  }
-
-  fun debug(tag: string, message: string) {
-    log(LogLevel.DEBUG, tag, message);
-  }
-
-  fun info(tag: string, message: string) {
-    log(LogLevel.INFO, tag, message);
-  }
-
-  fun warning(tag: string, message: string) {
-    log(LogLevel.WARNING, tag, message);
-  }
-
-  fun error(tag: string, message: string) {
-    log(LogLevel.ERROR, tag, message);
-  }
-}
-
-final logger = Logger()
 
 /**
  * Spotify 인증 엔드포인트 클래스
@@ -79,7 +30,7 @@ final logger = Logger()
  */
 class SpotifyAuthEndpoint {
   final controller: StreamController
-  var _timer: Timer
+  var _timer
   
   /**
    * 인증 정보 (credentials)
@@ -136,7 +87,7 @@ class SpotifyAuthEndpoint {
     })
 
     // LocalStorage에서 인증 정보 복구 시도
-    print("[INFO] [SpotifyAuthEndpoint] Attempting to initialize from LocalStorage...")
+    logger.info("SpotifyAuthEndpoint", "Attempting to initialize from LocalStorage...")
     initializeFromLocalStorage()
   }
 
@@ -181,28 +132,28 @@ class SpotifyAuthEndpoint {
 
 
   fun initializeFromLocalStorage() {
-    print("[INFO] [initializeFromLocalStorage] Reading credentials from LocalStorage...")
+    logger.info("initializeFromLocalStorage", "Reading credentials from LocalStorage...")
     
     // LocalStorage.getString()은 Future를 반환하므로 비동기 처리
     LocalStorage.getString("myspotify_plugin.credentials").then((credentialsStr) {
-      print("[INFO] [initializeFromLocalStorage] Got result: ${credentialsStr != null ? 'Found' : 'Not found'}")
+      logger.info("initializeFromLocalStorage", "Got result: ${credentialsStr != null ? 'Found' : 'Not found'}")
       
       if (credentialsStr != null && credentialsStr != "") {
-        print("[INFO] [initializeFromLocalStorage] Credentials found!")
+        logger.info("initializeFromLocalStorage", "Credentials found!")
         
         final creds = JSON.decode(credentialsStr)
         credentials = creds
-        print("[INFO] [initializeFromLocalStorage] Credentials loaded successfully")
+        logger.info("initializeFromLocalStorage", "Credentials loaded successfully")
         
         if (isExpired()) {
-          print("[INFO] [initializeFromLocalStorage] Credentials expired, refreshing...")
+          logger.info("initializeFromLocalStorage", "Credentials expired, refreshing...")
           refreshCredentials()
         } else {
-          print("[INFO] [initializeFromLocalStorage] Credentials valid, sending recovered event")
+          logger.info("initializeFromLocalStorage", "Credentials valid, sending recovered event")
           controller.add({ type: "recovered" })
         }
       } else {
-        print("[INFO] [initializeFromLocalStorage] No credentials found in LocalStorage")
+        logger.info("initializeFromLocalStorage", "No credentials found in LocalStorage")
       }
     })
   }  fun getLatestNuance() { // Future<{v: int, s: string}>
@@ -317,11 +268,11 @@ class SpotifyAuthEndpoint {
             spDc = afterValue.substring(0, endIndex)
             logger.info("credentialsFromData", "Extracted sp_dc value (length: ${spDc.length})")
           } else {
-            logger.error("credentialsFromData", "Could not find end of value")
+            logParseError("credentialsFromData", "Could not find end of value")
           }
           break
         } else {
-          logger.error("credentialsFromData", "Could not find 'value: ' in cookie string")
+          logParseError("credentialsFromData", "Could not find 'value: ' in cookie string")
         }
       }
     }
@@ -330,8 +281,7 @@ class SpotifyAuthEndpoint {
 
     // sp_dc 데이터 검증
     if (spDc == null || spDc.isEmpty) {
-      logger.error("credentialsFromData", "sp_dc not found in cookies!")
-      throw "Invalid sp_dc: Authentication data is required but was null or empty. Please log in again."
+      handleValidationError("credentialsFromData", "Invalid sp_dc: Authentication data is required but was null or empty. Please log in again.")
     }
 
     logger.info("credentialsFromData", "Starting token generation...")
@@ -345,10 +295,7 @@ class SpotifyAuthEndpoint {
           totpVer: nuance["v"],
         ).then((res){
           if (res.body["accessToken"] == null) {
-            logger.warning(
-              "credentialsFromData", 
-              "The access token is only ${res.body["accessToken"]?.length} characters long instead of 374. Your authentication probably doesn't work"
-            );
+            warnMissingData("credentialsFromData", "accessToken")
           }
 
           return {

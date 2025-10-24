@@ -1,0 +1,74 @@
+/**
+ * 쿠키 유틸리티
+ * 
+ * Spotify 인증 쿠키 처리를 위한 헬퍼 함수들
+ * credentials 객체에서 쿠키를 안전하게 추출하는 기능 제공
+ */
+
+/**
+ * credentials 객체에서 특정 이름의 쿠키 값을 가져옴
+ * 
+ * @param credentials 인증 정보 객체 (cookies 배열 포함)
+ * @param cookieName 찾을 쿠키 이름 (예: "sp_t", "sp_dc")
+ * @return 쿠키 값 또는 빈 문자열
+ * 
+ * 사용 예시:
+ * ```
+ * final spT = getCookieValue(auth.credentials, "sp_t")
+ * ```
+ */
+fun getCookieValue(credentials, cookieName: string) -> string {
+  // credentials가 null이거나 cookies가 없으면 빈 문자열 반환
+  if (credentials == null || credentials["cookies"] == null) {
+    return "";
+  }
+  
+  // 해당 이름의 쿠키 찾기
+  final cookies = credentials["cookies"].where((c) => c["name"] == cookieName).toList();
+  
+  // 쿠키가 있으면 값 반환, 없으면 빈 문자열 반환
+  return cookies.length > 0 ? cookies[0]["value"] : "";
+}
+
+/**
+ * credentials 객체에 특정 이름의 쿠키가 존재하는지 확인
+ * 
+ * @param credentials 인증 정보 객체
+ * @param cookieName 확인할 쿠키 이름
+ * @return 쿠키 존재 여부
+ * 
+ * 사용 예시:
+ * ```
+ * if (hasCookie(auth.credentials, "sp_t")) {
+ *   // sp_t 쿠키가 있을 때 처리
+ * }
+ * ```
+ */
+fun hasCookie(credentials, cookieName: string) -> bool {
+  if (credentials == null || credentials["cookies"] == null) {
+    return false;
+  }
+  
+  final cookies = credentials["cookies"].where((c) => c["name"] == cookieName).toList();
+  return cookies.length > 0;
+}
+
+/**
+ * credentials 객체에서 모든 쿠키 이름 목록을 가져옴
+ * 
+ * @param credentials 인증 정보 객체
+ * @return 쿠키 이름 배열
+ * 
+ * 디버깅이나 로깅에 유용:
+ * ```
+ * final cookieNames = getCookieNames(auth.credentials)
+ * print("Available cookies: ${cookieNames}")
+ * ```
+ */
+fun getCookieNames(credentials) -> list {
+  if (credentials == null || credentials["cookies"] == null) {
+    return [];
+  }
+  
+  return credentials["cookies"].map((c) => c["name"]).toList();
+}

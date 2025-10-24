@@ -1,3 +1,17 @@
+# Build outputs
 build/
+
+# System files
 **/.DS_Store
+Thumbs.db
+
+# IDE
 .idea/
+.vscode/settings.json
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/

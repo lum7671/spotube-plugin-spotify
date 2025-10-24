@@ -350,6 +350,7 @@ await plugin.playlist.addTracks(
 ### 테스트
 
 예시 Flutter 앱을 통한 플러그인 테스트:
+
 ```bash
 cd example
 flutter run
@@ -365,6 +366,7 @@ flutter run
 ### 철학
 
 프로젝트는 아티스트 직접 지원을 장려합니다:
+
 - 스트리밍 서비스의 중개 수수료를 피하고
 - 아티스트에게 직접 기부하거나 굿즈 구매, 콘서트 참석을 권장합니다
 

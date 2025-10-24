@@ -1,0 +1,246 @@
+import { logger } from './logger.ht'
+
+/**
+ * 에러 핸들러 유틸리티
+ * 
+ * 프로젝트 전체에서 사용하는 통일된 에러 처리 함수들을 제공
+ * 로깅과 에러 던지기를 한 곳에서 관리하여 일관된 에러 처리 보장
+ */
+
+/**
+ * 인증 관련 에러 처리 (에러를 throw함)
+ * 
+ * @param tag 에러 발생 위치 (클래스명 또는 함수명)
+ * @param message 에러 메시지
+ * @throws string
+ * 
+ * 사용 예시:
+ * ```
+ * if (auth.credentials == null) {
+ *   handleAuthError("BrowseEndpoint", "Authentication required. Please login first.")
+ * }
+ * ```
+ */
+fun handleAuthError(tag: string, message: string) {
+  logger.error(tag, "AUTH ERROR: ${message}")
+  throw message
+}
+
+/**
+ * 인증 관련 에러 로깅 (throw하지 않음)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ */
+fun logAuthError(tag: string, message: string) {
+  logger.error(tag, "AUTH ERROR: ${message}")
+}
+
+/**
+ * 네트워크/API 요청 에러 처리 (에러를 throw함)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ * @throws string
+ * 
+ * 사용 예시:
+ * ```
+ * if (response.statusCode != 200) {
+ *   handleNetworkError("SpotifyApi", "Failed to fetch data: ${response.statusCode}")
+ * }
+ * ```
+ */
+fun handleNetworkError(tag: string, message: string) {
+  logger.error(tag, "NETWORK ERROR: ${message}")
+  throw message
+}
+
+/**
+ * 네트워크/API 요청 에러 로깅 (throw하지 않음)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ */
+fun logNetworkError(tag: string, message: string) {
+  logger.error(tag, "NETWORK ERROR: ${message}")
+}
+
+/**
+ * 데이터 파싱 에러 처리 (에러를 throw함)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ * @throws string
+ * 
+ * 사용 예시:
+ * ```
+ * if (data["accessToken"] == null) {
+ *   handleParseError("AuthEndpoint", "Missing accessToken in response")
+ * }
+ * ```
+ */
+fun handleParseError(tag: string, message: string) {
+  logger.error(tag, "PARSE ERROR: ${message}")
+  throw message
+}
+
+/**
+ * 데이터 파싱 에러 로깅 (throw하지 않음)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ */
+fun logParseError(tag: string, message: string) {
+  logger.error(tag, "PARSE ERROR: ${message}")
+}
+
+/**
+ * 유효성 검증 에러 처리 (에러를 throw함)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ * @throws string
+ * 
+ * 사용 예시:
+ * ```
+ * if (spDc == null || spDc.isEmpty) {
+ *   handleValidationError("credentialsFromData", "sp_dc not found in cookies")
+ * }
+ * ```
+ */
+fun handleValidationError(tag: string, message: string) {
+  logger.error(tag, "VALIDATION ERROR: ${message}")
+  throw message
+}
+
+/**
+ * 유효성 검증 에러 로깅 (throw하지 않음)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ */
+fun logValidationError(tag: string, message: string) {
+  logger.error(tag, "VALIDATION ERROR: ${message}")
+}
+
+/**
+ * 일반 에러 처리 (카테고리가 명확하지 않을 때)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ * @throws string
+ * 
+ * 사용 예시:
+ * ```
+ * handleError("CoreEndpoint", "Unexpected error occurred")
+ * ```
+ */
+fun handleError(tag: string, message: string) {
+  logger.error(tag, "ERROR: ${message}")
+  throw message
+}
+
+/**
+ * 일반 에러 로깅 (throw하지 않음)
+ * 
+ * @param tag 에러 발생 위치
+ * @param message 에러 메시지
+ */
+fun logError(tag: string, message: string) {
+  logger.error(tag, "ERROR: ${message}")
+}
+
+/**
+ * 재시도 한계 도달 에러 처리 (에러를 throw함)
+ * 
+ * @param tag 에러 발생 위치
+ * @param maxRetries 최대 재시도 횟수
+ * @throws string
+ * 
+ * 사용 예시:
+ * ```
+ * if (_refreshRetryCount >= _maxRefreshRetries) {
+ *   handleRetryLimitError("refreshCredentials", _maxRefreshRetries)
+ * }
+ * ```
+ */
+fun handleRetryLimitError(tag: string, maxRetries: int) {
+  final message = "Max retry count reached (${maxRetries}). Operation aborted."
+  logger.error(tag, message)
+  throw message
+}
+
+/**
+ * 재시도 한계 도달 에러 로깅 (throw하지 않음)
+ * 
+ * @param tag 에러 발생 위치
+ * @param maxRetries 최대 재시도 횟수
+ */
+fun logRetryLimitError(tag: string, maxRetries: int) {
+  final message = "Max retry count reached (${maxRetries}). Operation aborted."
+  logger.error(tag, message)
+}
+
+/**
+ * 데이터 누락 경고 (throw하지 않고 로깅만)
+ * 
+ * @param tag 경고 발생 위치
+ * @param fieldName 누락된 필드명
+ * 
+ * 사용 예시:
+ * ```
+ * if (res.body["accessToken"] == null) {
+ *   warnMissingData("credentialsFromData", "accessToken")
+ * }
+ * ```
+ */
+fun warnMissingData(tag: string, fieldName: string) {
+  final message = "Missing or null data: ${fieldName}"
+  logger.warning(tag, message)
+}
+
+/**
+ * 데이터 누락 경고 with context (추가 정보 포함)
+ * 
+ * @param tag 경고 발생 위치
+ * @param fieldName 누락된 필드명
+ * @param context 추가 컨텍스트 정보
+ * 
+ * 사용 예시:
+ * ```
+ * warnMissingDataWithContext("credentialsFromData", "accessToken", "Token might be invalid")
+ * ```
+ */
+fun warnMissingDataWithContext(tag: string, fieldName: string, context: string) {
+  final message = "Missing or null data: ${fieldName}. ${context}"
+  logger.warning(tag, message)
+}
+
+/**
+ * 에러 메시지 포맷팅 (사용자 친화적 메시지 생성)
+ * 
+ * @param errorType 에러 타입 ("auth", "network", "parse" 등)
+ * @param details 상세 정보
+ * @return 포맷된 에러 메시지
+ * 
+ * 사용 예시:
+ * ```
+ * final msg = formatErrorMessage("auth", "Invalid credentials")
+ * throw msg
+ * ```
+ */
+fun formatErrorMessage(errorType: string, details: string) -> string {
+  if (errorType == "auth") {
+    return "Authentication failed: ${details}. Please log in again."
+  }
+  if (errorType == "network") {
+    return "Network request failed: ${details}. Please check your connection."
+  }
+  if (errorType == "parse") {
+    return "Data parsing failed: ${details}. The response format may have changed."
+  }
+  if (errorType == "validation") {
+    return "Validation failed: ${details}. Please check your input."
+  }
+  return "An error occurred: ${details}"
+}

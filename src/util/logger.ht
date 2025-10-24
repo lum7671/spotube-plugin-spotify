@@ -1,0 +1,131 @@
+import 'module:std' as std
+
+var DateTime = std.DateTime
+
+/**
+ * 로깅 레벨
+ * 
+ * 로그의 중요도를 나타내는 열거형
+ * DEBUG < INFO < WARNING < ERROR 순서
+ */
+enum LogLevel {
+  DEBUG,
+  INFO,
+  WARNING,
+  ERROR
+}
+
+/**
+ * 로깅 시스템
+ * 
+ * 구조화된 로그를 제공하는 유틸리티 클래스
+ * 타임스탬프, 로그 레벨, 태그를 포함한 통일된 로그 포맷 제공
+ * 
+ * 사용 예시:
+ * ```
+ * logger.info("MyClass", "Operation completed successfully")
+ * logger.error("MyClass", "Failed to connect: ${error}")
+ * ```
+ * 
+ * 로그 레벨 설정:
+ * ```
+ * logger.minLevel = LogLevel.WARNING  // WARNING 이상만 출력
+ * logger.enabled = false               // 로깅 완전 비활성화
+ * ```
+ */
+class Logger {
+  var enabled: bool = true
+  var minLevel: LogLevel = LogLevel.INFO
+
+  /**
+   * 로그 출력
+   * 
+   * @param level 로그 레벨
+   * @param tag 로그 태그 (주로 클래스명 또는 함수명)
+   * @param message 로그 메시지
+   */
+  fun log(level: LogLevel, tag: string, message: string) {
+    if (!enabled) return;
+    
+    // 설정된 최소 레벨보다 낮은 로그는 출력하지 않음
+    if (!_shouldLog(level)) return;
+    
+    final levelStr = _getLevelString(level);
+    final timestamp = DateTime.now().toString();
+    print("[${timestamp}] [${levelStr}] [${tag}] ${message}");
+  }
+
+  /**
+   * 로그 레벨 체크 (내부 메서드)
+   * 
+   * @param level 체크할 로그 레벨
+   * @return 출력 여부
+   */
+  fun _shouldLog(level: LogLevel) -> bool {
+    // DEBUG < INFO < WARNING < ERROR 순서
+    if (minLevel == LogLevel.INFO && level == LogLevel.DEBUG) return false;
+    if (minLevel == LogLevel.WARNING && (level == LogLevel.DEBUG || level == LogLevel.INFO)) return false;
+    if (minLevel == LogLevel.ERROR && level != LogLevel.ERROR) return false;
+    return true;
+  }
+
+  /**
+   * 로그 레벨을 문자열로 변환 (내부 메서드)
+   * 
+   * @param level 로그 레벨
+   * @return 레벨 문자열
+   */
+  fun _getLevelString(level: LogLevel) -> string {
+    if (level == LogLevel.DEBUG) return "DEBUG";
+    if (level == LogLevel.INFO) return "INFO";
+    if (level == LogLevel.WARNING) return "WARN";
+    return "ERROR";
+  }
+
+  /**
+   * DEBUG 레벨 로그
+   * 
+   * @param tag 로그 태그
+   * @param message 로그 메시지
+   */
+  fun debug(tag: string, message: string) {
+    log(LogLevel.DEBUG, tag, message);
+  }
+
+  /**
+   * INFO 레벨 로그
+   * 
+   * @param tag 로그 태그
+   * @param message 로그 메시지
+   */
+  fun info(tag: string, message: string) {
+    log(LogLevel.INFO, tag, message);
+  }
+
+  /**
+   * WARNING 레벨 로그
+   * 
+   * @param tag 로그 태그
+   * @param message 로그 메시지
+   */
+  fun warning(tag: string, message: string) {
+    log(LogLevel.WARNING, tag, message);
+  }
+
+  /**
+   * ERROR 레벨 로그
+   * 
+   * @param tag 로그 태그
+   * @param message 로그 메시지
+   */
+  fun error(tag: string, message: string) {
+    log(LogLevel.ERROR, tag, message);
+  }
+}
+
+/**
+ * 전역 Logger 인스턴스
+ * 
+ * 모든 모듈에서 공통으로 사용하는 로거
+ */
+final logger = Logger()
