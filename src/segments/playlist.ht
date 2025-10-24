@@ -1,5 +1,7 @@
 import { SpotifyGqlApi } from '../../dependencies/hetu_spotify_gql_client/lib/assets/hetu/spotify_gql_api_client.ht'
 import { Converters } from '../converter/converter.ht'
+import { logger } from '../util/logger.ht'
+import { handleError, warnMissingData } from '../util/error_handler.ht'
 
 class PlaylistEndpoint {
   var client: SpotifyGqlApi
@@ -7,12 +9,21 @@ class PlaylistEndpoint {
   construct (this.client)
 
   fun getPlaylist(id: string) {
+    logger.info("getPlaylist", "Fetching playlist: ${id}")
     return client.playlist.getPlaylist(id).then((data) {
+      if (data == null) {
+        warnMissingData("getPlaylist", "playlist data for id: ${id}")
+        return null
+      }
       return Converters.fullPlaylists([data])[0]
+    }).catchError((error) {
+      handleError("getPlaylist", error, "Failed to fetch playlist: ${id}")
+      throw error
     })
   }
 
   fun tracks(id: string, { offset: int, limit: int }) {
+    logger.debug("tracks", "Fetching tracks for playlist: ${id}, offset: ${offset}, limit: ${limit}")
     return client.playlist.tracks(id, offset: offset, limit: limit).then((data) {
       var paginated = Converters.paginated(
         data, 
@@ -24,6 +35,9 @@ class PlaylistEndpoint {
       paginated["items"] = paginated["items"].where((item) => item != null && item["id"] != null).toList()
 
       return paginated
+    }).catchError((error) {
+      handleError("tracks", error, "Failed to fetch playlist tracks: ${id}")
+      throw error
     })
   }
 
@@ -80,11 +94,19 @@ class PlaylistEndpoint {
   }
 
   fun save(playlistId: string) {
-    return client.playlist.follow(playlistId)
+    logger.info("save", "Following playlist: ${playlistId}")
+    return client.playlist.follow(playlistId).catchError((error) {
+      handleError("save", error, "Failed to follow playlist")
+      throw error
+    })
   }
 
   fun unsave(playlistId: string) {
-    return client.playlist.unfollow(playlistId)
+    logger.info("unsave", "Unfollowing playlist: ${playlistId}")
+    return client.playlist.unfollow(playlistId).catchError((error) {
+      handleError("unsave", error, "Failed to unfollow playlist")
+      throw error
+    })
   }
 }
 

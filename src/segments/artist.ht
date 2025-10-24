@@ -1,5 +1,7 @@
 import { SpotifyGqlApi } from '../../dependencies/hetu_spotify_gql_client/lib/assets/hetu/spotify_gql_api_client.ht'
 import { Converters } from '../converter/converter.ht'
+import { logger } from '../util/logger.ht'
+import { handleError, warnMissingData } from '../util/error_handler.ht'
 
 class ArtistEndpoint {
   var client: SpotifyGqlApi
@@ -7,12 +9,21 @@ class ArtistEndpoint {
   construct (this.client)
 
   fun getArtist(id: string) {
+    logger.info("getArtist", "Fetching artist: ${id}")
     return client.artist.getArtist(id).then((data) {
+      if (data == null) {
+        warnMissingData("getArtist", "artist data for id: ${id}")
+        return null
+      }
       return Converters.fullArtists([data])[0]
+    }).catchError((error) {
+      handleError("getArtist", error, "Failed to fetch artist: ${id}")
+      throw error
     })
   }
 
   fun topTracks(id: string, {limit: int, offset: int}) {
+    logger.debug("topTracks", "Fetching top tracks for artist: ${id}")
     return client.artist.topTracks(id, limit: limit, offset: offset).then((data) {
       return {
         total: data["tracks"].length,
@@ -21,24 +32,40 @@ class ArtistEndpoint {
         hasMore: false,
         items: Converters.fullTracks(data["tracks"])
       }.toJson()
+    }).catchError((error) {
+      handleError("topTracks", error, "Failed to fetch top tracks for artist: ${id}")
+      throw error
     })
   }
 
   fun albums(id: string, {offset: int, limit: int}) {
+    logger.debug("albums", "Fetching albums for artist: ${id}")
     return client.artist.albums(id, offset: offset, limit: limit).then((data) {
       return Converters.paginated(data, (items) => Converters.simpleAlbums(items))
+    }).catchError((error) {
+      handleError("albums", error, "Failed to fetch albums for artist: ${id}")
+      throw error
     })
   }
 
   fun save(artistIds: List) {
-    return client.artist.follow(artistIds).then(() => true)
+    logger.info("save", "Following ${artistIds.length} artist(s)")
+    return client.artist.follow(artistIds).then(() => true).catchError((error) {
+      handleError("save", error, "Failed to follow artists")
+      throw error
+    })
   }
 
   fun unsave(artistIds: List) {
-    return client.artist.unfollow(artistIds).then(() => true)
+    logger.info("unsave", "Unfollowing ${artistIds.length} artist(s)")
+    return client.artist.unfollow(artistIds).then(() => true).catchError((error) {
+      handleError("unsave", error, "Failed to unfollow artists")
+      throw error
+    })
   }
 
   fun related(id: string, {offset: int, limit: int}) {
+    logger.debug("related", "Fetching related artists for: ${id}")
     return client.artist.related(id).then((data) {
       var artists = Converters.fullArtists(data["artists"])
 
@@ -49,6 +76,9 @@ class ArtistEndpoint {
         hasMore: false,
         items: artists
       }.toJson()
+    }).catchError((error) {
+      handleError("related", error, "Failed to fetch related artists for: ${id}")
+      throw error
     })
   }
 }

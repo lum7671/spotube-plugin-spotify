@@ -1,5 +1,7 @@
 import { SpotifyGqlApi } from '../../dependencies/hetu_spotify_gql_client/lib/assets/hetu/spotify_gql_api_client.ht'
 import { Converters } from '../converter/converter.ht'
+import { logger } from '../util/logger.ht'
+import { handleError } from '../util/error_handler.ht'
 
 class UserEndpoint {
   var client: SpotifyGqlApi
@@ -7,41 +9,61 @@ class UserEndpoint {
   construct (this.client)
   
   fun me() {
+    logger.info("me", "Fetching current user profile")
     return client.user.me().then((data){
       return Converters.simpleUser(data)
+    }).catchError((error) {
+      handleError("me", error, "Failed to fetch user profile")
+      throw error
     })
   }
 
   fun savedTracks({ offset: int, limit: int }) {
+    logger.debug("savedTracks", "Fetching saved tracks, offset: ${offset}, limit: ${limit}")
     return client.user.savedTracks(offset: offset, limit: limit).then(
       (data) => Converters.paginated(data, (items) => Converters.fullTracks(items))
-    )
+    ).catchError((error) {
+      handleError("savedTracks", error, "Failed to fetch saved tracks")
+      throw error
+    })
   }
 
   fun savedPlaylists({ offset: int, limit: int }) {
+    logger.debug("savedPlaylists", "Fetching saved playlists, offset: ${offset}, limit: ${limit}")
     return client.user.savedPlaylists(offset: offset, limit: limit).then((data){           
       return Converters.paginated(
         data, 
         (items) => Converters.simplePlaylistsFromLibraryV3(data["items"])
       )
+    }).catchError((error) {
+      handleError("savedPlaylists", error, "Failed to fetch saved playlists")
+      throw error
     })
   }
 
   fun savedAlbums({ offset: int, limit: int }) {
+    logger.debug("savedAlbums", "Fetching saved albums, offset: ${offset}, limit: ${limit}")
     return client.user.savedAlbums(offset: offset, limit: limit).then((data){
       return Converters.paginated(
         data, 
         (items) => Converters.simpleAlbums(items)
       )
+    }).catchError((error) {
+      handleError("savedAlbums", error, "Failed to fetch saved albums")
+      throw error
     })
   }
 
   fun savedArtists({ offset: int, limit: int }) {
+    logger.debug("savedArtists", "Fetching saved artists, offset: ${offset}, limit: ${limit}")
     return client.user.savedArtists(offset: offset, limit: limit).then((data){
       return Converters.paginated(
         data, 
         (items) => Converters.fullArtists(items)
       )
+    }).catchError((error) {
+      handleError("savedArtists", error, "Failed to fetch saved artists")
+      throw error
     })
   }
 

@@ -1,5 +1,7 @@
 import { SpotifyGqlApi } from '../../dependencies/hetu_spotify_gql_client/lib/assets/hetu/spotify_gql_api_client.ht'
 import { Converters } from '../converter/converter.ht'
+import { logger } from '../util/logger.ht'
+import { handleError } from '../util/error_handler.ht'
 
 class SearchEndpoint {
   var client: SpotifyGqlApi
@@ -12,6 +14,7 @@ class SearchEndpoint {
   }
 
   fun all(query: string) {
+    logger.info("all", "Searching for: ${query}")
     return client.search.all(
       query,
       limit: 20
@@ -24,6 +27,9 @@ class SearchEndpoint {
       }.toJson()
 
       return result
+    }).catchError((error) {
+      handleError("all", error, "Failed to search for: ${query}")
+      throw error
     })
   }
 

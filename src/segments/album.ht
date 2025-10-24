@@ -1,5 +1,7 @@
 import { SpotifyGqlApi } from '../../dependencies/hetu_spotify_gql_client/lib/assets/hetu/spotify_gql_api_client.ht'
 import { Converters } from '../converter/converter.ht'
+import { logger } from '../util/logger.ht'
+import { handleError, warnMissingData } from '../util/error_handler.ht'
 
 class AlbumEndpoint {
   var client: SpotifyGqlApi
@@ -7,28 +9,52 @@ class AlbumEndpoint {
   construct (this.client)
 
   fun getAlbum(id: string) {
+    logger.info("getAlbum", "Fetching album: ${id}")
     return client.album.getAlbum(id).then((album) {
+      if (album == null) {
+        warnMissingData("getAlbum", "album data for id: ${id}")
+        return null
+      }
       return Converters.fullAlbums([album])[0]
+    }).catchError((error) {
+      handleError("getAlbum", error, "Failed to fetch album: ${id}")
+      throw error
     })
   }
 
   fun tracks(id: string, {offset: int, limit: int}) {
+    logger.debug("tracks", "Fetching tracks for album: ${id}, offset: ${offset}, limit: ${limit}")
     return client.album.tracks(id, offset: offset, limit: limit).then((data) {
       return Converters.paginated(data, (items) => Converters.fullTracks(items))
+    }).catchError((error) {
+      handleError("tracks", error, "Failed to fetch album tracks: ${id}")
+      throw error
     })
   }
 
   fun releases({offset: int, limit: int}) {
+    logger.debug("releases", "Fetching new releases, offset: ${offset}, limit: ${limit}")
     return client.album.releases(offset: offset, limit: limit).then((data){
       return Converters.paginated(data, (items)=> Converters.simpleAlbums(items))
+    }).catchError((error) {
+      handleError("releases", error, "Failed to fetch new releases")
+      throw error
     })
   }
 
   fun save(albumIds: List) {
-    return client.album.save(albumIds)
+    logger.info("save", "Saving ${albumIds.length} album(s)")
+    return client.album.save(albumIds).catchError((error) {
+      handleError("save", error, "Failed to save albums")
+      throw error
+    })
   }
 
   fun unsave(albumIds: List) {
-    return client.album.unsave(albumIds)
+    logger.info("unsave", "Removing ${albumIds.length} album(s) from library")
+    return client.album.unsave(albumIds).catchError((error) {
+      handleError("unsave", error, "Failed to unsave albums")
+      throw error
+    })
   }
 }

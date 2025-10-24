@@ -1,5 +1,7 @@
 import { SpotifyGqlApi } from '../../dependencies/hetu_spotify_gql_client/lib/assets/hetu/spotify_gql_api_client.ht'
 import { Converters } from '../converter/converter.ht'
+import { logger } from '../util/logger.ht'
+import { handleError, warnMissingData } from '../util/error_handler.ht'
 
 class TrackEndpoint {
   var client: SpotifyGqlApi
@@ -7,27 +9,59 @@ class TrackEndpoint {
   construct (this.client)
 
   fun getTrack(id: string) {
+    logger.info("getTrack", "Fetching track: ${id}")
     return client.track.getTrack(id).then((data) {
+      if (data == null) {
+        warnMissingData("getTrack", "track data for id: ${id}")
+        return null
+      }
       return Converters.fullTracks([data])[0]
+    }).catchError((error) {
+      handleError("getTrack", error, "Failed to fetch track: ${id}")
+      throw error
     })
   }
 
   fun save(trackIds: List) async {
-    await client.track.save(trackIds)
-    return true
+    logger.info("save", "Saving ${trackIds.length} track(s)")
+    try {
+      await client.track.save(trackIds)
+      return true
+    } catch (error) {
+      handleError("save", error, "Failed to save tracks")
+      throw error
+    }
   }
 
   fun unsave(trackIds: List) async {
-    await client.track.unsave(trackIds)
-    return true
+    logger.info("unsave", "Removing ${trackIds.length} track(s) from library")
+    try {
+      await client.track.unsave(trackIds)
+      return true
+    } catch (error) {
+      handleError("unsave", error, "Failed to unsave tracks")
+      throw error
+    }
   }
 
   fun radio(trackId: string) {
+    logger.info("radio", "Generating radio for track: ${trackId}")
     return client.track.getTrack(trackId).then((data){
+      if (data == null) {
+        warnMissingData("radio", "track data for radio generation")
+        throw "Track not found"
+      }
+      
       var query = "${data['name']} Radio"
       return client.search.playlists(query, limit: 20).then((data) {
         var playlists = data["items"];
         var radioPlaylist = playlists.firstWhere((playlist) => playlist["name"] == query, orElse: () => null);
+        
+        if (radioPlaylist == null) {
+          logger.warning("radio", "No radio playlist found for: ${query}")
+          return []
+        }
+        
         return client.playlist.tracks(radioPlaylist["id"], offset: 0, limit: 50)
           .then((data) {
             var tracks = data["items"].map((item){
@@ -39,6 +73,9 @@ class TrackEndpoint {
             return Converters.fullTracks(tracks)
           });
       })
+    }).catchError((error) {
+      handleError("radio", error, "Failed to generate radio for track: ${trackId}")
+      throw error
     })
   }
 }
