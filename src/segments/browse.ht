@@ -13,10 +13,19 @@ class BrowseEndpoint {
   construct (this.client, this.auth)
 
   fun sections({offset: int, limit: int}) {
+    // 인증되지 않은 경우 체크
+    if (auth.credentials == null) {
+      throw "Authentication required. Please login first."
+    }
+    
     return Timezone.getLocalTimeZone().then((timeZone){
+      // sp_t 쿠키 찾기 (없으면 빈 문자열 사용)
+      final spTCookies = auth.credentials["cookies"].where((c)=>c["name"] == "sp_t").toList()
+      final spTValue = spTCookies.length > 0 ? spTCookies[0]["value"] : ""
+      
       return client.browse.home(
         timeZone: timeZone,
-        spTCookie: auth.credentials["cookies"].where((c)=>c["name"] == "sp_t").elementAt(0)["value"]
+        spTCookie: spTValue,
         limit: limit,
       ).then((sections){
         return {
@@ -47,11 +56,20 @@ class BrowseEndpoint {
   }
 
   fun sectionItems(id: string, {offset: int, limit: int}) {
+    // 인증되지 않은 경우 체크
+    if (auth.credentials == null) {
+      throw "Authentication required. Please login first."
+    }
+    
     return Timezone.getLocalTimeZone().then((timeZone) {
+      // sp_t 쿠키 찾기 (없으면 빈 문자열 사용)
+      final spTCookies = auth.credentials["cookies"].where((c)=>c["name"] == "sp_t").toList()
+      final spTValue = spTCookies.length > 0 ? spTCookies[0]["value"] : ""
+      
       return client.browse.homeSection(
         id, 
         timeZone: timeZone,
-        spTCookie: auth.credentials["cookies"].where((c)=>c["name"] == "sp_t").elementAt(0)["value"],
+        spTCookie: spTValue,
         offset: offset,
         limit: limit,
       ).then((section){

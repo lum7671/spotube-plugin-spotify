@@ -6,7 +6,7 @@ class SharedPreferencesLocalStorage implements Localstorage {
   SharedPreferencesLocalStorage(this._prefs);
 
   String prefix(String key) {
-    return 'hetu_spotube_plugin.$key';
+    return 'myspotify_plugin.$key';
   }
 
   @override

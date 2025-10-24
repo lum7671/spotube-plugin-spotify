@@ -4,6 +4,8 @@ compile:
 archive:
 	mkdir -p build/archive; \
 	cp plugin.json build/plugin.out assets/logo.png build/archive/; \
+	cp -r src build/archive/; \
+	cp -r dependencies build/archive/; \
 	cd build/archive; \
 	zip -r plugin.zip ./; \
 	cd ../..; \

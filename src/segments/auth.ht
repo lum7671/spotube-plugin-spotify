@@ -5,6 +5,7 @@ import { TOTP, OTPAlgorithm } from '../../dependencies/hetu_otp_util/lib/assets/
 var StreamController = std.StreamController
 var Stream = std.Stream
 var StreamSubscription = std.StreamSubscription
+// var Future = std.Future  // ⚠️ Future 타입이 Hetu에서 제대로 작동하지 않음
 var DateTime = std.DateTime
 var Duration = std.Duration
 var HttpClient = std.HttpClient
@@ -15,7 +16,6 @@ var JSON = std.JSON
 var Regex = std.Regex
 var LocalStorage = spotube.LocalStorage
 var Webview = spotube.Webview
-var Cookie = spotube.Cookie
 
 // 로깅 레벨
 enum LogLevel {
@@ -33,8 +33,11 @@ class Logger {
   fun log(level: LogLevel, tag: string, message: string) {
     if (!enabled) return;
     
-    // 프로덕션 환경에서는 ERROR 레벨만 출력
-    if (level.index < minLevel.index) return;
+    // 레벨 체크 (enum.index 대신 직접 비교)
+    // DEBUG < INFO < WARNING < ERROR 순서
+    if (minLevel == LogLevel.INFO && level == LogLevel.DEBUG) return;
+    if (minLevel == LogLevel.WARNING && (level == LogLevel.DEBUG || level == LogLevel.INFO)) return;
+    if (minLevel == LogLevel.ERROR && level != LogLevel.ERROR) return;
     
     final levelStr = level == LogLevel.DEBUG ? "DEBUG" :
                      level == LogLevel.INFO ? "INFO" :
@@ -82,7 +85,7 @@ class SpotifyAuthEndpoint {
    * 인증 정보 (credentials)
    * 
    * Map 구조:
-   * - `cookies`: List<Map> - Cookie 객체의 toJson() 결과 목록
+   * - `cookies`: List<Map> - WebView에서 가져온 인증 데이터 목록
    * - `accessToken`: string - Spotify 액세스 토큰 (374자)
    * - `expiration`: int - 만료 시간 (milliseconds since epoch)
    */
@@ -132,6 +135,8 @@ class SpotifyAuthEndpoint {
       }
     })
 
+    // LocalStorage에서 인증 정보 복구 시도
+    print("[INFO] [SpotifyAuthEndpoint] Attempting to initialize from LocalStorage...")
     initializeFromLocalStorage()
   }
 
@@ -142,6 +147,11 @@ class SpotifyAuthEndpoint {
    */
   fun isExpired() -> bool {
 		if (credentials == null) {
+			return true
+		}
+		
+		// expiration 필드가 없거나 null이면 만료된 것으로 간주
+		if (credentials["expiration"] == null) {
 			return true
 		}
 
@@ -171,40 +181,41 @@ class SpotifyAuthEndpoint {
 
 
   fun initializeFromLocalStorage() {
-		LocalStorage.getString("credentials").then((credentialsStr){
-      if (credentialsStr != null) {
-        try {
-          credentials = JSON.decode(credentialsStr);
-          if (isExpired()) {
-            refreshCredentials()
-          } else {
-            controller.add({ type: "recovered" }.toJson())
-          }
-        } catch (e) {
-          // JSON 파싱 실패 시 손상된 데이터 제거
-          logger.error("initializeFromLocalStorage", "Failed to parse credentials: ${e}");
-          LocalStorage.remove("credentials");
-          credentials = null;
-          controller.add({type: "error", message: "Failed to recover credentials. Please log in again."}.toJson());
+    print("[INFO] [initializeFromLocalStorage] Reading credentials from LocalStorage...")
+    
+    // LocalStorage.getString()은 Future를 반환하므로 비동기 처리
+    LocalStorage.getString("myspotify_plugin.credentials").then((credentialsStr) {
+      print("[INFO] [initializeFromLocalStorage] Got result: ${credentialsStr != null ? 'Found' : 'Not found'}")
+      
+      if (credentialsStr != null && credentialsStr != "") {
+        print("[INFO] [initializeFromLocalStorage] Credentials found!")
+        
+        final creds = JSON.decode(credentialsStr)
+        credentials = creds
+        print("[INFO] [initializeFromLocalStorage] Credentials loaded successfully")
+        
+        if (isExpired()) {
+          print("[INFO] [initializeFromLocalStorage] Credentials expired, refreshing...")
+          refreshCredentials()
+        } else {
+          print("[INFO] [initializeFromLocalStorage] Credentials valid, sending recovered event")
+          controller.add({ type: "recovered" })
         }
+      } else {
+        print("[INFO] [initializeFromLocalStorage] No credentials found in LocalStorage")
       }
     })
-	}
-
-  fun getLatestNuance() -> Future { // Future<{v: int, s: string}>
+  }  fun getLatestNuance() { // Future<{v: int, s: string}>
     return client.get_req(
       "https://codeberg.org/sonic-liberation/blubber-junkyard-elitism/raw/branch/main/nuances.json"
     ).then((res) {
       var data = JSON.decode(res.data);
       data.sort((a, b) => b["v"].compareTo(a["v"]))
       return data.first
-    }).catchError((e) {
-      logger.error("getLatestNuance", "Network error: ${e}");
-      throw Exception("Failed to fetch nuance data. Please check your internet connection and try again.");
     })
   }
 
-  fun generateTimedOnTimePassword(secret: string) -> Future {
+  fun generateTimedOnTimePassword(secret: string) {
 		return client.get_req("https://open.spotify.com/api/server-time")
     .then((res) {
       final timestampSeconds = res.data["serverTime"]
@@ -221,9 +232,6 @@ class SpotifyAuthEndpoint {
           timestampSeconds * 1000 // Convert seconds to milliseconds
         )
       )
-    }).catchError((e) {
-      logger.error("generateTimedOnTimePassword", "Network error: ${e}");
-      throw Exception("Failed to generate TOTP. Please check your internet connection and try again.");
     })
 	}
 
@@ -242,7 +250,7 @@ class SpotifyAuthEndpoint {
 		spDc: string,
     mode: string = "transport",
     totpVer: int
-	}) -> Future {
+	}) {
     logger.debug("getToken", "Timestamp: ${timestamp}, TOTP: ${totp}, Mode: ${mode}, spDc: ${spDc}")
     final timestampSeconds = (timestamp.millisecondsSinceEpoch / 1000).floor()
 		final accessTokenUrl = "https://open.spotify.com/api/token?reason=${mode}&productType=web-player&totp=${totp}&totpServer=${totp}&totpVer=${totpVer}"
@@ -254,15 +262,12 @@ class SpotifyAuthEndpoint {
       accessTokenUrl, 
       options: RequestOptions(
         headers: {
-          Cookie: spDc ?? "",
+          "Cookie": spDc ?? "",
           "User-Agent": userAgent,
         }.toJson(),
       )
     ).then((res){
       return { body: res.data, headers: res.headers }
-    }).catchError((e) {
-      logger.error("getToken", "Network error: ${e}");
-      throw Exception("Failed to get access token. Please check your internet connection and try again.");
     })
 	}
 
@@ -270,23 +275,66 @@ class SpotifyAuthEndpoint {
    * 쿠키를 사용하여 credentials 생성
    * 
    * Spotify 인증 프로세스:
-   * 1. sp_dc 쿠키 추출 및 검증
+   * 1. sp_dc 데이터 추출 및 검증
    * 2. 최신 nuance 데이터 가져오기
    * 3. TOTP 생성
    * 4. 액세스 토큰 발급
    * 
-   * @param cookies List<Map> - WebView에서 가져온 쿠키 목록
+   * @param cookies List<Map> - WebView에서 가져온 인증 데이터 목록
    * @return Future<Map> - credentials 맵 (cookies, accessToken, expiration)
-   * @throws Exception - sp_dc 쿠키가 없거나, 네트워크 오류 발생 시
+   * @throws Exception - sp_dc 데이터가 없거나, 네트워크 오류 발생 시
    */
-  fun credentialsFromCookie(cookies: List) -> Future {
-		final spDc = cookies.where((c) => c["name"] == "sp_dc").first?["value"];
+  fun credentialsFromData(cookies: List) {
+    logger.info("credentialsFromData", "Processing ${cookies.length} cookies")
+    
+    // sp_dc 쿠키 찾기
+		var spDc = null
+    
+    logger.info("credentialsFromData", "Starting cookie iteration...")
+    
+    // Spotube는 Cookie 객체를 반환 - toString()에서 name이 보임
+    // cookies는 이미 우리가 원하는 형태의 Map 리스트일 수 있음
+    for (var i = 0; i < cookies.length; i = i + 1) {
+      final cookie = cookies[i]
+      final cookieStr = "${cookie}"
+      logger.info("credentialsFromData", "Cookie ${i}: ${cookieStr}")
+      
+      // toString()에서 "name: sp_dc"를 찾기
+      if (cookieStr.contains("name: sp_dc")) {
+        logger.info("credentialsFromData", "✅ Found sp_dc in cookie string!")
+        
+        // "value: XXX"에서 XXX 추출 - 문자열 파싱
+        final valueIndex = cookieStr.indexOf("value: ")
+        if (valueIndex >= 0) {
+          logger.info("credentialsFromData", "Found 'value: ' at index ${valueIndex}")
+          final valueStart = valueIndex + 7  // "value: " 길이
+          final afterValue = cookieStr.substring(valueStart)
+          logger.info("credentialsFromData", "After 'value: ': ${afterValue.substring(0, 20)}...")
+          
+          // '}'를 찾아서 그 전까지가 값
+          final endIndex = afterValue.indexOf("}")
+          if (endIndex > 0) {
+            spDc = afterValue.substring(0, endIndex)
+            logger.info("credentialsFromData", "Extracted sp_dc value (length: ${spDc.length})")
+          } else {
+            logger.error("credentialsFromData", "Could not find end of value")
+          }
+          break
+        } else {
+          logger.error("credentialsFromData", "Could not find 'value: ' in cookie string")
+        }
+      }
+    }
+    
+    logger.info("credentialsFromData", "sp_dc found: ${spDc != null}")
 
-    // sp_dc 쿠키 검증
+    // sp_dc 데이터 검증
     if (spDc == null || spDc.isEmpty) {
-      throw Exception("Invalid sp_dc cookie: Cookie is required for authentication but was null or empty. Please log in again.")
+      logger.error("credentialsFromData", "sp_dc not found in cookies!")
+      throw "Invalid sp_dc: Authentication data is required but was null or empty. Please log in again."
     }
 
+    logger.info("credentialsFromData", "Starting token generation...")
     return getLatestNuance().then((nuance){
       return generateTimedOnTimePassword(nuance["s"]).then((totp){
         return getToken(
@@ -298,7 +346,7 @@ class SpotifyAuthEndpoint {
         ).then((res){
           if (res.body["accessToken"] == null) {
             logger.warning(
-              "credentialsFromCookie", 
+              "credentialsFromData", 
               "The access token is only ${res.body["accessToken"]?.length} characters long instead of 374. Your authentication probably doesn't work"
             );
           }
@@ -328,16 +376,23 @@ class SpotifyAuthEndpoint {
    * @param cookies List<Map> - WebView에서 가져온 쿠키 목록
    * @return Future<void> - 로그인 완료 시 {type: "login"} 이벤트 발생
    */
-  fun login(cookies: List) -> Future {
-		return this.credentialsFromCookie(cookies).then((creds){
+  fun login(cookies: List) {
+    logger.info("login", "Login function called with ${cookies.length} cookies")
+		return this.credentialsFromData(cookies).then((creds){
+      logger.info("login", "Credentials generated successfully")
       // 경쟁 조건 방지: credentials 먼저 할당 후 저장
       credentials = creds;
-      LocalStorage.setString("credentials", JSON.encode(creds.toJson()));
+      logger.info("login", "Saving credentials to LocalStorage...")
+      
+      // LocalStorage.setString()도 Future를 반환할 수 있으므로 비동기 처리
+      return LocalStorage.setString("myspotify_plugin.credentials", JSON.encode(creds.toJson())).then((result) {
+        logger.info("login", "Credentials saved successfully: ${result}")
+        
+        // 재시도 카운터 초기화 (로그인 성공 시)
+        _refreshRetryCount = 0;
 
-      // 재시도 카운터 초기화 (로그인 성공 시)
-      _refreshRetryCount = 0;
-
-      controller.add({type: "login"}.toJson());
+        controller.add({type: "login"});
+      })
     })
 	}
 
@@ -351,7 +406,7 @@ class SpotifyAuthEndpoint {
    * 
    * @return Future<void> - 갱신 성공 시 {type: "refreshed"} 이벤트 발생
    */
-	fun refreshCredentials() -> Future {
+	fun refreshCredentials() {
 		if (credentials["cookies"] == null) {
 			logger.warning(
 				"refreshCredentials", 
@@ -359,18 +414,17 @@ class SpotifyAuthEndpoint {
 			);
 			return;
 		}
-		return this.credentialsFromCookie(credentials["cookies"]).then((creds){
+		return this.credentialsFromData(credentials["cookies"]).then((creds){
       // 경쟁 조건 방지: credentials 먼저 할당 후 저장
       credentials = creds;
-      LocalStorage.setString("credentials", JSON.encode(creds.toJson()));
+      LocalStorage.setString("myspotify_plugin.credentials", JSON.encode(creds.toJson()));
       
       // 재시도 카운터 초기화 (성공 시)
       _refreshRetryCount = 0;
       
       controller.add({ type: "refreshed" }.toJson())
-    }).catchError((e) {
-      logger.error("refreshCredentials", "Failed to refresh: ${e}");
-      _refreshRetryCount++;
+    }).then(fun (result) {
+      // Success - token refreshed
       
       // 최대 재시도 횟수 초과 시 자동 로그아웃
       if (_refreshRetryCount >= _maxRefreshRetries) {
@@ -385,34 +439,212 @@ class SpotifyAuthEndpoint {
 	}
 
   /**
+   * 원본 Spotify 플러그인의 credentials를 확인
+   * LocalStorage에서 "spotify_credentials" 키를 읽어서 쿠키가 있으면 가져옴
+   * 
+   * @return Future<bool> - 원본 credentials를 찾아서 로그인 성공 시 true
+   */
+  fun _checkOriginalPluginCredentials() {
+    logger.info("_checkOriginalPluginCredentials", "Checking original Spotify plugin credentials...")
+    
+    return LocalStorage.getString("spotify_credentials").then((credentialsStr){
+      // credentials가 없으면 false 반환
+      if (credentialsStr == null || credentialsStr == "") {
+        logger.info("_checkOriginalPluginCredentials", "No original plugin credentials found")
+        return false
+      }
+      
+      logger.info("_checkOriginalPluginCredentials", "Found original plugin credentials!")
+      
+      var credentialsData = JSON.decode(credentialsStr)
+      
+      if (credentialsData == null || !(credentialsData is Map)) {
+        logger.error("_checkOriginalPluginCredentials", "Invalid credentials data format")
+        return false
+      }
+      
+      var cookiesData = credentialsData["cookie"]
+      
+      if (cookiesData == null || !(cookiesData is List) || cookiesData.length == 0) {
+        logger.error("_checkOriginalPluginCredentials", "No cookies found in credentials")
+        return false
+      }
+      
+      logger.info("_checkOriginalPluginCredentials", "Found ${cookiesData.length} cookies from original plugin")
+      
+      // 쿠키 데이터를 현재 플러그인에 복사
+      return login(cookiesData).then(() {
+        logger.info("_checkOriginalPluginCredentials", "✅ Successfully imported credentials from original plugin!")
+        return true
+      })
+    })
+  }
+
+  /**
    * WebView를 열어 Spotify 로그인 수행
    * 
    * 프로세스:
-   * 1. WebView에서 Spotify 계정 페이지 열기
-   * 2. 로그인 완료 감지 (URL이 /status로 끝남)
-   * 3. 쿠키 추출 및 login() 호출
-   * 4. StreamSubscription 정리하여 메모리 누수 방지
+   * 0. 원본 Spotify 플러그인의 credentials 확인 (있으면 복사)
+   * 1. 강제 로그아웃 옵션이면 쿠키 삭제 후 WebView 열기
+   * 2. 그 외의 경우 WebView 열어서 로그인
+   * 3. 로그인 완료 감지 (URL이 /status로 끝남)
+   * 4. 쿠키 추출 및 login() 호출
+   * 5. StreamSubscription 정리하여 메모리 누수 방지
    * 
-   * @return Future<void> - WebView가 열리면 완료
+   * 참고: 이미 인증되어 있는 경우 UI에서 getAuthStatus()로 확인 가능
+   * 
+   * @param forceLogout bool - true면 기존 쿠키 삭제 후 재로그인 (기본값: false)
+   * @return Future<void> - 인증 완료 시 resolve
    */
-  fun authenticate() -> Future {
-    var webview = Webview(uri: "https://accounts.spotify.com/")
+  fun authenticate(forceLogout: bool = false) {
+    // null 처리: Spotube가 null을 전달할 수 있음
+    final isForceLogout = forceLogout == true
+    logger.info("authenticate", "Called with forceLogout=${forceLogout}, processed as: ${isForceLogout}")
+    
+    // 인증 상태 로깅
+    final authStatus = isAuthenticated()
+    logger.info("authenticate", "Current auth status: ${authStatus}")
+    if (credentials != null) {
+      logger.info("authenticate", "Credentials exist, expired: ${isExpired()}")
+    } else {
+      logger.info("authenticate", "No credentials found")
+    }
 
+    // ✅ 강제 로그아웃이 아니고 현재 인증되지 않은 경우, 원본 플러그인 credentials 확인
+    if (!isForceLogout && !authStatus) {
+      logger.info("authenticate", "Not authenticated - checking original plugin credentials first...")
+      return _checkOriginalPluginCredentials().then((imported){
+        if (imported) {
+          logger.info("authenticate", "✅ Imported from original plugin - skipping WebView")
+          return null  // WebView 열 필요 없음
+        } else {
+          logger.info("authenticate", "No original credentials - opening WebView")
+          return _openWebViewForAuth(isForceLogout)
+        }
+      })
+    }
+
+    // 이미 인증되었거나 강제 로그아웃인 경우 WebView 열기
+    return _openWebViewForAuth(isForceLogout)
+  }
+
+  /**
+   * WebView를 열어서 인증 수행
+   * 
+   * @param forceLogout bool - 강제 로그아웃 여부
+   * @return Future<void>
+   */
+  fun _openWebViewForAuth(forceLogout) {
+    logger.info("_openWebViewForAuth", "Opening WebView for authentication")
+    logger.info("_openWebViewForAuth", "Creating WebView with ID: myspotify_auth_webview")
+    
+    // WebView ID를 명시적으로 지정하여 다른 플러그인과 충돌 방지
+    var webview = Webview(
+      uri: "https://accounts.spotify.com/",
+      id: "myspotify_auth_webview"
+    )
+
+    logger.info("_openWebViewForAuth", "WebView instance created successfully")
+
+    // 강제 로그아웃 옵션: 기존 쿠키 삭제
+    if (forceLogout) {
+      logger.info("_openWebViewForAuth", "Force logout requested - clearing cookies")
+      return webview.clearCookies().then(() {
+        logger.info("_openWebViewForAuth", "Cookies cleared, proceeding with authentication")
+        return _performAuthentication(webview)
+      })
+    }
+
+    // 일반적인 경우: WebView 열어서 로그인
+    logger.info("_openWebViewForAuth", "Proceeding with normal authentication flow")
+    return _performAuthentication(webview)
+  }
+
+  /**
+   * WebView를 열어서 실제 로그인 수행
+   * 
+   * @param webview Webview - 사용할 WebView 인스턴스
+   * @return Future<void>
+   */
+  fun _performAuthentication(webview) {
+    logger.info("_performAuthentication", "Setting up URL listener")
+    
+    var isFirstLoad = true  // 첫 로드 플래그
     var sub: StreamSubscription = webview.onUrlRequestStream.listen((url){
+      logger.info("_performAuthentication", "URL changed: ${url}")
       var safeUrl = url.endsWith("/") ? url.substring(0, url.length - 1) : url
       var exp = Regex("https:\\/\\/accounts.spotify.com\\/.+\\/status")
+      
+      // 로그인 완료 페이지 감지
       if(exp.hasMatch(safeUrl)) {
-        return webview.getCookies(url).then((cookies){
-          return login(cookies.map((cookie)=> cookie.toJson()).toList()).then(() {
-            // StreamSubscription 정리 - 메모리 누수 방지
-            sub.cancel()
-            return webview.close()
-          })
+        logger.info("_performAuthentication", "Login completed! Getting cookies...")
+        
+        return webview.getCookies(url).then(fun (cookies) {
+          logger.info("_performAuthentication", "Got ${cookies.length} cookies")
+          
+          // Cookie 객체를 직접 사용 (Spotube는 이미 JSON 형태로 반환)
+          logger.info("_performAuthentication", "Using cookies directly")
+          
+          return login(cookies)
+        }).then(fun () {
+          logger.info("_performAuthentication", "Login successful! Closing WebView")
+          sub.cancel()
+          return webview.close()
         })
+      }
+      
+      // ✅ 첫 로드 시에만 기존 쿠키 확인 (이미 로그인된 경우 자동 로그인)
+      if (isFirstLoad && url.startsWith("https://accounts.spotify.com")) {
+        isFirstLoad = false  // 플래그 해제
+        logger.info("_performAuthentication", "First load - checking for existing cookies...")
+        
+        var processedResult = webview.getCookies(url).then(fun (cookies) {
+          logger.info("_performAuthentication", "Found ${cookies.length} cookies")
+          
+          // Cookie 객체를 직접 사용
+          logger.info("_performAuthentication", "Checking for required cookies...")
+          
+          // Check for required cookies
+          var hasSpDc = false
+          var hasSpKey = false
+          var idx = 0
+          while (idx < cookies.length) {
+            var cookie = cookies[idx]
+            if (cookie["name"] == "sp_dc") {
+              hasSpDc = true
+              logger.info("_performAuthentication", "Found sp_dc cookie")
+            }
+            if (cookie["name"] == "sp_key") {
+              hasSpKey = true
+              logger.info("_performAuthentication", "Found sp_key cookie")
+            }
+            idx = idx + 1
+          }
+          
+          // Login if both cookies exist
+          if (hasSpDc && hasSpKey) {
+            logger.info("_performAuthentication", "✅ Found existing valid cookies! Auto-login...")
+            
+            return login(cookies).then(fun () {
+              logger.info("_performAuthentication", "✅ Auto-login successful! Closing WebView")
+              sub.cancel()
+              return webview.close()
+            })
+          } else {
+            logger.info("_performAuthentication", "No valid cookies found (sp_dc: ${hasSpDc}, sp_key: ${hasSpKey})")
+            return null
+          }
+        })
+        return processedResult
       }
     })
 
-    return webview.open()
+    logger.info("_performAuthentication", "Opening WebView...")
+    
+    return webview.open().then(fun (result) {
+      logger.info("_performAuthentication", "WebView opened successfully: ${result}")
+      return result
+    })
   }
 
   /**
@@ -426,9 +658,53 @@ class SpotifyAuthEndpoint {
    */
 	fun logout() {
 		credentials = null;
-		LocalStorage.remove("credentials");
+		LocalStorage.remove("myspotify_plugin.credentials");
 		controller.add({type: "logout"}.toJson());
 	}
+  
+  /**
+   * 현재 인증 상태 정보 반환
+   * 
+   * UI에서 인증 상태를 확인하여 적절한 버튼("로그인" vs "로그아웃")을 표시할 수 있습니다.
+   * 
+   * @return Map - {
+   *   authenticated: bool - 인증 여부,
+   *   hasCredentials: bool - credentials 존재 여부,
+   *   isExpired: bool - 토큰 만료 여부 (credentials 있을 때만),
+   *   expiresIn: string - 만료까지 남은 시간 (credentials 있을 때만)
+   * }
+   */
+  fun getAuthStatus() -> Map {
+    if (credentials == null) {
+      return {
+        authenticated: false,
+        hasCredentials: false,
+        isExpired: true,
+        expiresIn: null
+      }.toJson()
+    }
+    
+    final expired = isExpired()
+    final authenticated = !expired
+    var expiresIn: string = null
+    
+    if (!expired) {
+      final duration = getExpirationDuration()
+      if (duration != null) {
+        final hours = duration.inHours
+        final minutes = (duration.inMinutes % 60)
+        expiresIn = "${hours}시간 ${minutes}분"
+      }
+    }
+    
+    return {
+      authenticated: authenticated,
+      isAuthenticated: authenticated,  // Spotube 호환성을 위한 별칭
+      hasCredentials: true,
+      isExpired: expired,
+      expiresIn: expiresIn
+    }.toJson()
+  }
 }
 
 export { SpotifyAuthEndpoint }

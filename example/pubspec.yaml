@@ -24,11 +24,6 @@ dependencies:
       ref: main
   get_it: ^8.0.3
   shared_preferences: ^2.5.3
-  desktop_webview_window:
-    git:
-      path: packages/desktop_webview_window
-      ref: feat/cookies
-      url: https://github.com/KRTirtho/flutter-plugins.git
 
 dev_dependencies:
   flutter_test:

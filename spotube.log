@@ -1,0 +1,51 @@
+2025-10-23 15:55:04.549 Spotube[91716:3053232] Running with merged UI and platform thread. Experimental.
+🔵 Sandbox directory not found, skipping migration
+flutter: hetu: 1ms	to load module	hetu (compiled at 2022-08-09 10:27:17 UTC with hetu@0.4.2)
+flutter: hetu: 1ms	to load module	std (compiled at 2025-08-22 15:28:56 UTC with hetu@0.4.2)
+flutter: hetu: 0ms	to load module	otp_util (compiled at 2025-05-23 13:02:13 UTC with hetu@0.4.2)
+flutter: hetu: 0ms	to load module	spotube_plugin (compiled at 2025-06-30 15:04:03 UTC with hetu@0.4.2)
+flutter: hetu: 2ms	to load module	plugin (compiled at 2025-10-23 06:53:39 UTC with hetu@0.4.2)
+flutter: hetu: 0ms	to parse	[$script_55d257e5: import "module:plu...]
+flutter: hetu: 0ms	to bundle	[$script_55d257e5: import "module:plu...]
+flutter: hetu: 0ms	to compile	[$script_55d257e5: import "module:plu...]
+flutter: [INFO] [SpotifyAuthEndpoint] Attempting to initialize from LocalStorage...
+flutter: [INFO] [initializeFromLocalStorage] Reading credentials from LocalStorage...
+flutter: hetu: 1ms	to load module	$script_55d257e5: import "module:plu... (compiled at 2025-10-23 06:55:05 UTC with hetu@0.4.2)
+flutter: [INFO] [initializeFromLocalStorage] Got result: Not found
+flutter: [INFO] [initializeFromLocalStorage] No credentials found in LocalStorage
+flutter: hetu: 0ms	to parse	[$script_7eabcfc4: metadataPlugin.aut...]
+flutter: hetu: 0ms	to bundle	[$script_7eabcfc4: metadataPlugin.aut...]
+flutter: hetu: 0ms	to compile	[$script_7eabcfc4: metadataPlugin.aut...]
+flutter: hetu: 0ms	to load module	$script_7eabcfc4: metadataPlugin.aut... (compiled at 2025-10-23 06:55:05 UTC with hetu@0.4.2)
+flutter: hetu: 0ms	to parse	[$script_7366b485: metadataPlugin.aut...]
+flutter: hetu: 0ms	to bundle	[$script_7366b485: metadataPlugin.aut...]
+flutter: hetu: 0ms	to compile	[$script_7366b485: metadataPlugin.aut...]
+flutter: hetu: 0ms	to load module	$script_7366b485: metadataPlugin.aut... (compiled at 2025-10-23 06:55:05 UTC with hetu@0.4.2)
+flutter: hetu: 0ms	to parse	[$script_5289b473: metadataPlugin.aut...]
+flutter: hetu: 0ms	to bundle	[$script_5289b473: metadataPlugin.aut...]
+flutter: hetu: 0ms	to compile	[$script_5289b473: metadataPlugin.aut...]
+flutter: [2025-10-23 15:55:13.199084] [INFO] [authenticate] Called with forceLogout=null, processed as: false
+flutter: [2025-10-23 15:55:13.199168] [INFO] [authenticate] Current auth status: false
+flutter: [2025-10-23 15:55:13.199209] [INFO] [authenticate] No credentials found
+flutter: [2025-10-23 15:55:13.199249] [INFO] [authenticate] Not authenticated - checking original plugin credentials first...
+flutter: [2025-10-23 15:55:13.199288] [INFO] [_checkOriginalPluginCredentials] Checking original Spotify plugin credentials...
+flutter: hetu: 1ms	to load module	$script_5289b473: metadataPlugin.aut... (compiled at 2025-10-23 06:55:13 UTC with hetu@0.4.2)
+flutter: [2025-10-23 15:55:13.199373] [INFO] [_checkOriginalPluginCredentials] No original plugin credentials found
+flutter: [2025-10-23 15:55:13.199417] [INFO] [authenticate] No original credentials - opening WebView
+flutter: [2025-10-23 15:55:13.199459] [INFO] [_openWebViewForAuth] Opening WebView for authentication
+flutter: [2025-10-23 15:55:13.199492] [INFO] [_openWebViewForAuth] Creating WebView with ID: myspotify_auth_webview
+flutter: [2025-10-23 15:55:13.199541] [INFO] [_openWebViewForAuth] WebView instance created successfully
+flutter: [2025-10-23 15:55:13.199576] [INFO] [_openWebViewForAuth] Proceeding with normal authentication flow
+flutter: [2025-10-23 15:55:13.199612] [INFO] [_performAuthentication] Setting up URL listener
+flutter: [2025-10-23 15:55:13.199664] [INFO] [_performAuthentication] Opening WebView...
+flutter: [2025-10-23 15:55:13.981224] [INFO] [_performAuthentication] URL changed: https://accounts.spotify.com/ko/status?flow_ctx=96e50640-84f2-4096-bc8c-34d47130bf33%3A1761224113
+flutter: [2025-10-23 15:55:13.981361] [INFO] [_performAuthentication] Login completed! Getting cookies...
+flutter: [2025-10-23 15:55:13.982088] [INFO] [_performAuthentication] Got 7 cookies
+flutter: [2025-10-23 15:55:13.982128] [INFO] [_performAuthentication] Using cookies directly
+flutter: [2025-10-23 15:55:13.982166] [INFO] [login] Login function called with 7 cookies
+flutter: [2025-10-23 15:55:13.982208] [INFO] [credentialsFromData] Processing 7 cookies
+flutter: [2025-10-23 15:55:13.982236] [INFO] [credentialsFromData] Starting cookie iteration...
+flutter: [2025-10-23 15:55:13.982276] [INFO] [credentialsFromData] Cookie 0: Cookie{domain: .spotify.com, expiresDate: 1790405979000, isHttpOnly: false, isSecure: true, isSessionOnly: false, name: sp_t, path: /, sameSite: null, value: 0905bdc2-357f-4d91-929d-95b0ca32159c}
+flutter: [2025-10-23 15:55:13.982319] [INFO] [credentialsFromData] Cookie 1: Cookie{domain: .spotify.com, expiresDate: 1792651414000, isHttpOnly: true, isSecure: true, isSessionOnly: false, name: sp_dc, path: /, sameSite: null, value: AQDd55o9HKBJjJm8Oi211MU3hT9U0jcVLnvg1A6cO1qlxySwrb_3BtBmdvDxSsfZMzl5PuCJwdYUrDPR8zpxbaRkmWkUUrq1NT4QU6bE2ScJYsKa7DD563CbcnO4kYmDo2cZlGFcPqiaxholqw_FLlueL39xzLpRF3TzB7ZtXSH6lPLTXuhq77-3LPR4XAWvVeXgIiBhBZE5tOuvPVQ}
+flutter: [2025-10-23 15:55:13.982351] [INFO] [credentialsFromData] ✅ Found sp_dc in cookie string!
+flutter: [2025-10-23 15:55:16.280629] [INFO] [_performAuthentication] WebView opened successfully: null
